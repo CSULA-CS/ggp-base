@@ -131,7 +131,7 @@ public class TournamentManager implements Observer {
         return Team.concat(team1, team2);
     }
 
-    /*
+    /* **** Currently Not used *******
      * Shuffles a list of players and finds one pair.
      */
     private void matchByRandom(List<String> users) throws Exception {
@@ -187,9 +187,9 @@ public class TournamentManager implements Observer {
     }
 
     /*
-     * Matches the least played users with another player making the best match quality.
+     * Matches a least played user with an opponent making best match quality
      */
-    private boolean matchLeastPlayedUserByBestMatchQuality(List<Document> ranks) throws Exception {
+    private void matchLeastPlayedUserByBestMatchQuality(List<Document> ranks) throws Exception {
         // DEBUG
         System.out.print("matchLeastPlayedUserByBestMatchQuality::");
 
@@ -198,34 +198,28 @@ public class TournamentManager implements Observer {
         // Finds which couple makes a best match quality.
         double bestQuality = -100.00;
         for (Document p1 : ranks) {
-            for (int i = 0; i < ranks.size(); i++) {
-                Document p2 = ranks.get(i);
-                String user1 = p1.getString("username");
-                String user2 = p2.getString("username");
-                if (!busyUsers.contains(user1) && !busyUsers.contains(user2) && user1 != user2) {
-                    Collection<ITeam> teams = setupTeams(p1, p2);
-                    double quality = twoPlayersCalculator.calculateMatchQuality(GameInfo.getDefaultGameInfo(), teams);
-                    if (quality > bestQuality) {
+            if (!busyUsers.contains(p1.getString("username"))) {
+                for (int i = 0; i < ranks.size(); i++) {
+                    Document p2 = ranks.get(i);
+                    if (!busyUsers.contains(p2.getString("username")) && p1.getString("username") != p2.getString("username")) {
+                        Collection<ITeam> teams = setupTeams(p1, p2);
+                        double quality = twoPlayersCalculator.calculateMatchQuality(GameInfo.getDefaultGameInfo(), teams);
+                        if (quality > bestQuality) {
 
-                        bestQuality = quality;
-                        if (pickedUsers.size() > 0)
-                            pickedUsers.clear();
+                            bestQuality = quality;
+                            if (pickedUsers.size() > 0)
+                                pickedUsers.clear();
 
-                        pickedUsers.add(p1.getString("username"));
-                        pickedUsers.add(p2.getString("username"));
-                        for (String username : pickedUsers)
-                            System.out.println("username: " + username);
-
-                        playOneVsOne(pickedUsers);
-                        return true;
+                            pickedUsers.add(p1.getString("username"));
+                            pickedUsers.add(p2.getString("username"));
+                        }
                     }
                 }
+
+                playOneVsOne(pickedUsers);
+                return;
             }
         }
-
-
-        System.out.println("No match!");
-        return false;
     }
 
     /*
@@ -256,7 +250,7 @@ public class TournamentManager implements Observer {
         }
         createRankings(currentRankings);
 
-        System.out.println("number user = " + currentRankings.size());
+        //System.out.println("number user = " + currentRankings.size());
         return currentRankings;
     }
 
@@ -310,39 +304,7 @@ public class TournamentManager implements Observer {
      * Called after each match is finished.
      */
     private void updateRankings(Match match) throws Exception {
-        /*// init userRankMap from latest ranks
-        Map<String, Document> userRankMap = new HashMap<>();
-
-        // No match means no rankings yet, then create one with default values.
-        Document latestMatch = latestMatch(tournament);
-        if (latestMatch == null) {
-            List<Document> userDocs = defaultRatingUsers(usersInTournament());
-            for (Document userDoc: userDocs)
-                userRankMap.put(userDoc.getString("username"), userDoc);
-        }
-        // If there is a ranking, pull them up.
-        else {
-            List<Document> latestRanks = (List<Document>)latestMatch.get("ranks");
-            for (Document rank : latestRanks)
-                userRankMap.put(rank.getString("username"), rank);
-        }
-
-        // List of users from latest match not in current ranking.
-        List<String> usersNotInRankings = new ArrayList<>();
-        for (String username : match.getPlayerNamesFromHost()) {
-            if (!userRankMap.containsKey(username))
-                usersNotInRankings.add(username);
-        }
-
-        // Initial values for users from latest match not in current ranking.
-        List<Document> usersNotInRankingsDoc = new ArrayList<>();
-        if (!usersNotInRankings.isEmpty())
-            usersNotInRankingsDoc.addAll(defaultRatingUsers(usersNotInRankings));
-        if (!usersNotInRankingsDoc.isEmpty()) {
-            for (Document eachUser: usersNotInRankingsDoc)
-                userRankMap.put(eachUser.getString("username"), eachUser);
-        }*/
-
+        // gets current rankings and put in a map
         Map<String, Document> userRankMap = new HashMap<>();
         for (Document rank : getCurrentRankings()) {
             userRankMap.put(rank.getString("username"), rank);
@@ -355,7 +317,7 @@ public class TournamentManager implements Observer {
         Rating p2Rating = new Rating(userRankMap.get(user2).getDouble("mu"), userRankMap.get(user2).getDouble("sigma"));
         Map<IPlayer, Rating> newRatings = updateOneVsOneRating(match, p1Rating, p2Rating);
 
-        // updates ratings of current rankings
+        // updates ratings of current rankings in a map
         for (Map.Entry<IPlayer, Rating> entry : newRatings.entrySet()) {
             String username = entry.getKey().toString();
             Rating newRating = entry.getValue();
@@ -370,7 +332,7 @@ public class TournamentManager implements Observer {
             }
         }
 
-        // rankings
+        // gets a list of rankings from a map, then add field "rank" to each of them
         List<Document> ranks = new ArrayList<Document>(userRankMap.values());
         createRankings(ranks);
         // match data
@@ -476,7 +438,7 @@ public class TournamentManager implements Observer {
 
 
     /*
-     * Adds field "ranks" to a list of user document
+     * Adds field "ranks" to a list of rankings
      */
     private void createRankings(List<Document> ranks) {
         sortByRating(ranks);
@@ -487,9 +449,7 @@ public class TournamentManager implements Observer {
         }
     }
 
-    private void insertNewMatch(String tournamentName,
-                                Match match, List<Document> matchResult,
-                                List<Document> ranks) throws TransformerException, ParserConfigurationException, IOException, XPathExpressionException, SAXException {
+    private void insertNewMatch(String tournamentName, Match match, List<Document> matchResult, List<Document> ranks) throws Exception {
         String tour_id = tournaments.find(eq("name", tournamentName)).first().getString("_id");
         Document thisMatch = new Document("tournament", tournament)
                 .append("tournament_id", tour_id)
@@ -502,7 +462,8 @@ public class TournamentManager implements Observer {
     }
 
     /*
-     *  Saves a match, **Currently not in used**
+     *  **Currently not in used**
+     *  Saves a match
      */
     private void saveMatch(Match match) throws IOException {
         System.out.println("saveMatch");
@@ -560,6 +521,12 @@ public class TournamentManager implements Observer {
             aGamePlayer.start();
         }
 
+        // run the match
+        GameServer server = new GameServer(match, hostNames, portNumbers);
+        server.addObserver(this);
+        server.start();
+        // server.join();  ** Don't use "join", it makes other threads wait for this one.
+
         // update players and match status
         synchronized (playerMap) {
             playerMap.put(matchId, gamePlayers);
@@ -568,12 +535,6 @@ public class TournamentManager implements Observer {
         synchronized (busyUsers) {
             busyUsers.addAll(playerNames);
         }
-
-        // run the match
-        GameServer server = new GameServer(match, hostNames, portNumbers);
-        server.addObserver(this);
-        server.start();
-        // server.join();  ** Don't use "join", it makes other threads wait for this one.
     }
 
     private void playOneVsOne(List<String> pickedUsers) throws Exception {
