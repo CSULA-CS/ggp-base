@@ -1,0 +1,22 @@
+Document
+
+- Matches
+    "tournament"
+    "tournament_id"
+    "match_id"
+    "result" : [
+        {
+            "username"
+            "score"
+        }
+    ],
+    "ranks" : [
+        {
+            "username"
+            "rating"
+            "mu"
+            "sigma"
+            "numMatch"
+        }
+    ],
+    "createdAt" : ISODate("2015-09-28T05:47:00.977Z")

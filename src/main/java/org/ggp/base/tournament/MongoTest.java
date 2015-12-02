@@ -180,30 +180,45 @@ class MongoTest {
         // List<Integer> portNumbers = new ArrayList<Integer>();
     }
 
+    public static int getRandomNum(Random rand, int i) {
+        return rand.nextInt((i - 1) + 1) + 1;
+    }
+
     public static void main(String[] args) {
 
-        TournamentManager tm = new TournamentManager("TicTacToe");
+        List<String> ranks = new ArrayList<>();
+        for (int i = 0; i < 10; i++)
+            ranks.add(Integer.toString(i));
+
+        Random rand = new Random();
+        int max = ranks.size() - 1;
+        for (int i = 0; i < 10; i++)
+            System.out.println("Rand num = " + getRandomNum(rand, max));
+
+
+
+        /*TournamentManager tm = new TournamentManager("TicTacToe");
         System.out.println(tm.getTournamentName());
 
         try {
 
-//            List<String> users = tm.usersInTournament();
-//            long seed = System.nanoTime();
-//            Collections.shuffle(users, new Random(seed));
-//            tm.playOneVsOne(users.subList(0, 2));
-//            System.out.println(" Hey ....");
+            List<String> users = tm.usersInTournament();
+            long seed = System.nanoTime();
+            Collections.shuffle(users, new Random(seed));
+            tm.playOneVsOne(users.subList(0, 2));
+            System.out.println(" Hey ....");
 
-//            List<Document> userNames = new ArrayList<>();
-//            for (int i = 0; i < 3; i++) {
-//                userNames.add(new Document("username", Integer.toString(i)).append("score", 10));
-//            }
-//
-//            Document newRanks = new Document("result", userNames);
-//            System.out.println(newRanks.toJson());
+            List<Document> userNames = new ArrayList<>();
+            for (int i = 0; i < 3; i++) {
+                userNames.add(new Document("username", Integer.toString(i)).append("score", 10));
+            }
+
+            Document newRanks = new Document("result", userNames);
+            System.out.println(newRanks.toJson());
 
         } catch (Exception e) {
             e.printStackTrace();
             tm.shutdown();
-        }
+        }*/
     }
 }

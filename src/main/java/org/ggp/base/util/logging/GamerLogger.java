@@ -30,7 +30,7 @@ public class GamerLogger {
     public static void emitToConsole(String s) {
         // TODO: fix this hack!
         if(!writeLogsToFile && !suppressLoggerOutput) {
-            System.out.print(s);
+            System.out.println(s);
         }
     }
 

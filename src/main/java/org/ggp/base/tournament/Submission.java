@@ -22,6 +22,8 @@ import javax.tools.ToolProvider;
 import javax.tools.StandardJavaFileManager;
 
 import org.apache.commons.io.FileUtils;
+import org.python.antlr.op.Sub;
+
 import java.io.File;
 import java.nio.file.Files;
 
@@ -45,12 +47,26 @@ import java.lang.RuntimeException;
 /*
 *   Some printlns to be removed
 */
-class Submission  {
-    static final String home = System.getProperty("user.home");
-    static final String uploadDir = home + "/.ggp-server/uploads/";
-    static final String compileDir = home + "/.ggp-server/compiled/";
+class Submission implements Runnable {
+    private static final String home = System.getProperty("user.home");
+    private static final String uploadDir = home + "/.ggp-server/uploads/";
+    private static final String compileDir = home + "/.ggp-server/compiled/";
+    private MongoClient mongoClient;
+    private MongoDatabase database;
+    private MongoCollection<Document> players;
+    private MongoCollection<Document> tournaments;
 
-    public static void unzip(String fileName) throws ZipException, IOException {
+    public Submission() {
+        mongoClient = new MongoClient("localhost", 3001);
+        database = mongoClient.getDatabase("meteor");
+        players = database.getCollection("players");
+        tournaments = database.getCollection("tournaments");
+    }
+
+    public void unzip(String fileName) throws ZipException, IOException {
+        if (!fileName.split("\\.(?=[^\\.]+$)")[1].equals("zip"))
+            return;
+
         String base = fileName.split("\\.(?=[^\\.]+$)")[0];
         String destination = compileDir + base;
         String password = "password";
@@ -73,7 +89,7 @@ class Submission  {
         }
     }
 
-    public static void compile(String playerPackage) throws RuntimeException, IOException {
+    public boolean compile(String playerPackage) throws Exception {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null);
 
@@ -83,11 +99,13 @@ class Submission  {
            fileManager.getJavaFileObjects(allJavaFiles.toArray( new File[allJavaFiles.size()]) ); // use alternative method
 
         // reuse the same file manager to allow caching of jar files
-        compiler.getTask(null, fileManager, null, null, null, compilationUnits2).call();
+        JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager, null, null, null, compilationUnits2);
+        boolean result = task.call();
         fileManager.close();
+        return result;
     }
 
-    public static String compilePlayer(String pathToZip) throws Exception {
+    public String compilePlayer(String pathToZip) throws Exception {
         // compile unzipped files, Need only one root package
         String base = pathToZip.split("\\.(?=[^\\.]+$)")[0];
         String playerDir = compileDir + base;
@@ -108,118 +126,14 @@ class Submission  {
             return null;
         } else {
             System.out.println("playerDir = " + playerDir + "/" + packageName);
-            compile(playerDir + "/" + packageName);
-            return playerDir;
+            if (compile(playerDir + "/" + packageName))
+                return playerDir;
+            return null;
         }
     }
 
-    // Add the latest compiled player to the tournament.
-    // public static void updateTournament(MongoCollection<Document> tournaments, 
-    //                                     String latestTourName,
-    //                                     String playerName) {
-    //     // Check if the player is already added to the tournament
-    //     Document isPlayerAdded = 
-    //         tournaments.find(
-    //             and( 
-    //                 eq("name", latestTourName),
-    //                 elemMatch("players", eq("name", playerName))
-    //                 )).first();
-
-    //     if (isPlayerAdded != null) {
-    //         System.out.println("This player is already in the tournament!");
-    //     } else {
-    //         System.out.println("Ready to add new player");
-    //         System.out.println("tournament name = " + latestTourName);
-    //         System.out.println("Player to add = " + playerName);
-            
-    //         // Add new player to the tournament(An array of players).
-    //         Document newPlayer = new Document("name", playerName);
-    //         tournaments.updateOne(
-    //             eq("name", latestTourName), 
-    //             new Document("$push", new Document("players", newPlayer)));
-    //     }
-    // }
-
-    // public static void updatePlayer(MongoCollection<Document> players, 
-    //                                     MongoCollection<Document> tournaments,
-    //                                     String pathToZip, 
-    //                                     String pathToClasses) {
-    //     // Player status: 'Compiled', 'no Gamer class', 'Compile failed'
-    //     try {
-            
-    //         URL url = new File(pathToClasses).toURL();
-    //         URL[] urls = new URL[]{url};
-    //         ClassLoader cl = new URLClassLoader(urls);
-    //         String[] extensions = {"class"};
-    //         String packageName = new File(pathToClasses).listFiles()[0].getName();
-    //         String pathToPackage = pathToClasses + "/" + packageName;
-    //         Collection<File> allClassFiles = 
-    //             FileUtils.listFiles(new File(pathToPackage), extensions, false);
-            
-    //         // Loop through all class files to find Gamer class.
-    //         for (Iterator<File> it = allClassFiles.iterator(); it.hasNext();) {
-    //             File f = it.next();
-    //             System.out.println("File name = " + f.getName());
-    //             String playerName = f.getName().split("\\.(?=[^\\.]+$)")[0];
-    //             String playerPackage = packageName + "." + playerName;
-    //             Class aClass = cl.loadClass(playerPackage);
-                
-    //             // found one and update player name, status and path to classes.
-    //             if (Gamer.class.isAssignableFrom(aClass)) {
-    //                 System.out.println( f.getName() + " is a player!!");
-                    
-    //                 // Set status to 'compiled'
-    //                 players.updateOne(eq("pathToZip", pathToZip),
-    //                         new Document("$set", new Document("status", "compiled")
-    //                                                 .append("name", playerName)
-    //                                                 .append("pathToClasses", pathToClasses)));
-
-    //                 // Get compiled player and make sure it has field 'latestTourName'.
-    //                 // * Need to check this field because there was no "lastestTourName" ealier.
-    //                 Document playerToAdd = 
-    //                     players.find(
-    //                         and(
-    //                             eq("pathToZip", pathToZip),
-    //                             exists("latestTourName")
-    //                             )).sort(descending("createdAt")).first();
-                    
-    //                 if (playerToAdd != null) {
-    //                     updateTournament(tournaments, 
-    //                                     playerToAdd.get("latestTourName").toString(), 
-    //                                     playerName);
-    //                 }
-
-    //                 return;
-    //             }
-    //         }
-
-    //     } catch (Exception e) {
-    //         e.printStackTrace();
-    //     }
-    // }
-
-            // URL url = new File(playerDir).toURL();
-            // URL[] urls = new URL[]{url};
-            // ClassLoader cl = new URLClassLoader(urls);
-            // final String packageName = "csula";
-            // final String playerName = "MyPlayer.java";
-            // String playerPackage = packageName + playerName;
-            // Class gamerClass = cl.loadClass(playerPackage);
-            // Gamer gamer = (Gamer) gamerClass.newInstance();
-            // int port = 9147;
-            // GamePlayer sampleLegelPlayer = new GamePlayer(port, gamer);
-            // sampleLegelPlayer.start();
-            // sampleLegelPlayer.shutdown();
-            
-            // Object newObject = Class.forName(strFullyQualifiedClassName).newInstance();
-            // Gamer gamer = (Gamer) chosenGamerClass.newInstance();
-            // new GamePlayer(port, gamer).start();
-
-    public static void main(String[] args) throws InterruptedException {
-        MongoClient mongoClient = new MongoClient( "localhost" , 3001 );
-        MongoDatabase database = mongoClient.getDatabase("meteor");
-        MongoCollection<Document> players = database.getCollection("players");
-        MongoCollection<Document> tournaments = database.getCollection("tournaments");
+    @Override
+    public void run() {
 
         while (true) {
             for (Document thePlayer : players.find(eq("status", "uploaded")).sort(descending("createdAt"))) {
@@ -227,20 +141,24 @@ class Submission  {
                 try {
                     unzip(pathToZip);
                     String pathToClasses = compilePlayer(pathToZip);
-                    players.updateOne(eq("pathToZip", pathToZip), 
-                        new Document("$set", new Document("pathToClasses", pathToClasses).append("status", "compiled")));
-                } 
+                    if (pathToClasses == null)
+                        players.updateOne(eq("pathToZip", pathToZip), new Document("$set", new Document("status", "fail")));
+                    else
+                        players.updateOne(eq("pathToZip", pathToZip),
+                                new Document("$set", new Document("pathToClasses", pathToClasses).append("status", "compiled")));
+                }
                 catch(Exception e) {
-                    System.out.println("--------- Failed to unzip and compile a player ---------");
                     e.printStackTrace();
                     continue;
                 }
             }
 
-            Thread.sleep(5 * 1000);
-            System.out.println("--- 5 seconds passed ---");
+            try {
+                Thread.currentThread().sleep(5 * 1000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            //System.out.println("Submission --- 5 seconds passed ---");
         }
-
-        // System.out.println("--- Exit Program! ---");
     }
 }
