@@ -1,12 +1,12 @@
 package org.ggp.base.tournament;
 
-import com.mongodb.MongoClient;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.result.UpdateResult;
 import jskills.*;
 import jskills.trueskill.TwoPlayerTrueSkillCalculator;
 import org.apache.commons.io.FileUtils;
 import org.bson.Document;
+import org.bson.conversions.Bson;
 import org.ggp.base.player.GamePlayer;
 import org.ggp.base.player.gamer.Gamer;
 import org.ggp.base.server.GameServer;
@@ -18,22 +18,22 @@ import org.ggp.base.util.observer.Event;
 import org.ggp.base.util.observer.Observer;
 import org.ggp.base.util.statemachine.Role;
 import org.python.antlr.ast.Str;
-import org.xml.sax.SAXException;
 
-import javax.print.Doc;
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.transform.TransformerException;
-import javax.xml.xpath.XPathExpressionException;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
-import static com.mongodb.client.model.Filters.and;
-import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Filters.*;
+import static com.mongodb.client.model.Projections.excludeId;
+import static com.mongodb.client.model.Projections.fields;
+import static com.mongodb.client.model.Projections.include;
+import static com.mongodb.client.model.Sorts.ascending;
 import static com.mongodb.client.model.Sorts.descending;
 import static java.util.Arrays.asList;
 
@@ -46,9 +46,12 @@ public class TournamentManager implements Observer {
     protected MongoCollection<Document> players;
     // map matchid with a list of players for that match
     private final Map<String, List<GamePlayer>> playerMap;
+    private final List<Match> schedulingQueue;
     private final Set<String> busyUsers;
     private String tournament;
     private final int numPlayers = 2;
+    private final int startClock = 3;
+    private final int playClock = 14;
     private ReplayBuilder replayBuilder;
 
     public TournamentManager(String touneyName, MongoConnection connection, ReplayBuilder theReplay) {
@@ -59,10 +62,197 @@ public class TournamentManager implements Observer {
         players = con.players;
         games = con.games;
         tournament = touneyName;
-        busyUsers = Collections.synchronizedSet(new HashSet<String>());
-        playerMap = Collections.synchronizedMap(new HashMap<String, List<GamePlayer>>());
+        busyUsers = new HashSet<String>();
+        playerMap = new HashMap<String, List<GamePlayer>>();
+        schedulingQueue = new ArrayList<Match>();
+//        busyUsers = Collections.synchronizedSet(new HashSet<String>());
+//        playerMap = Collections.synchronizedMap(new HashMap<String, List<GamePlayer>>());
+//        schedulingQueue = Collections.synchronizedList(new ArrayList<Match>());
         replayBuilder = theReplay;
+
     }
+
+    public UpdateResult addUser(String username) throws Exception {
+        return tournaments.updateOne(eq("name", tournament),
+            new Document("$push", new Document("users", new Document("username", username)))
+        );
+    }
+
+    /*
+     * For testing: adds a compiled player
+     */
+    public void addPlayer(String tourName, String username, String pathToClasses) {
+        Document aPlayer = new Document("username", username)
+            .append("tournament", tourName)
+            .append("pathToZip", "")
+            .append("pathToClasses", pathToClasses)
+            .append("status", "compiled")
+            .append("createdAt", new Date());
+        players.insertOne(aPlayer);
+    }
+
+    public UpdateResult deleteUser(String username) {
+        return tournaments.updateOne(eq("name", tournament),
+                new Document("$pull",
+                    new Document("users", new Document("username", username))));
+    }
+
+    public Document deleteLatestPlayer(String username) {
+        Date latestMatchDate =
+            players.find(and(
+                eq("tournament", tournament),
+                eq("username", username),
+                eq("status", "compiled"))).sort(descending("createdAt")).first().getDate("createdAt");
+        System.out.println("Delete a match on this date : " + latestMatchDate);
+        return players.findOneAndDelete(
+            and(
+                eq("tournament", tournament),
+                eq("username", username),
+                eq("createdAt", latestMatchDate)
+            ));
+    }
+
+    public boolean hasThisUser(String userToAdd) {
+        Document elemMatch = new Document("users.username", userToAdd);
+        if (tournaments.find(and(eq("name", tournament), new Document("elemMatch", elemMatch))).first() != null)
+            return true;
+        return false;
+    }
+
+    public Document latestMatch() {
+        if (matches.count(eq("tournament", tournament)) == 0)
+            return null;
+        return matches.find(eq("tournament", tournament)).sort(descending("createdAt")).first();
+    }
+
+    public List<Document> usersInTournament() {
+        return (List) tournaments.find(and(eq("name", tournament))).first().get("users");
+    }
+
+    public boolean doesUserHaveCompiledPlayer(String username) {
+        Document aPlayer =
+            players.find(
+                and(
+                    eq("tournament", tournament),
+                    eq("username", username))
+            ).sort(descending("createdAt")).first();
+        if (aPlayer != null)
+            return true;
+        return false;
+    }
+
+    public List<Document> compiledPlayersByUser(String username) {
+        return
+            players.find(
+                and(
+                    eq("tournament", tournament),
+                    eq("username", username),
+                    eq("status", "compiled")
+                )
+            ).into(new ArrayList<Document>());
+    }
+
+    /*
+     * Returns a list of users having their players status 'compiled'
+     */
+    private List<String> usersHavingCompiledPlayer() {
+        // "_id" required by API
+        List<Document> playersInTournament =
+            players.aggregate(
+                asList(
+                    new Document("$match", new Document("tournament", tournament)),
+                    new Document("$group", new Document("_id", "$username"))
+                )).into(new ArrayList<Document>());
+
+        List users = new ArrayList<String>();
+        for (Document aPlayer : playersInTournament) {
+            String username = aPlayer.get("_id").toString();
+            // System.out.println("username = " + username);
+            Document thisPlayer =
+                players.find(and(
+                    eq("username", username),
+                    eq("tournament", tournament),
+                    eq("status", "compiled"))).first();
+
+            if (thisPlayer != null)
+                users.add(username);
+        }
+
+        return users;
+    }
+
+
+    /*
+     * Finds new user not in current ranking, adds to a set of current users.
+     * Then builds up new rankings.
+     */
+    public List<Document> getCurrentRankings() throws Exception {
+        if (latestMatch() == null)
+            return defaultRatingUsers(usersHavingCompiledPlayer());
+
+        // latest match
+        System.out.println("............. getCurrentRankings with latest match.");
+        List<Document> rankings = (List) latestMatch().get("ranks");
+        List<String> currentUsers = new ArrayList();
+        for (Document rank: rankings)
+            currentUsers.add(rank.getString("username"));
+
+        // users joined after the latest match and their players are successfully compiled.
+        List<Document> newUsers =
+            players.find(
+                and(
+                    eq("tournament", tournament),
+                    eq("status", "compiled"),
+                    nin("username", currentUsers)
+                )).into(new ArrayList());
+
+
+        if (newUsers.size() > 0) {
+            System.out.println("Add new user to ranking");
+            List<String> defaultUsers = new ArrayList();
+            for (Document user: newUsers)
+                defaultUsers.add(user.getString("username"));
+            List<Document> newUsersWithDefaultRatings = defaultRatingUsers(defaultUsers);
+            rankings.addAll(newUsersWithDefaultRatings);
+        }
+
+        //createRankings(rankings);
+        return rankings;
+    }
+
+    /*
+     * Finds new user not in current ranking, adds to a set of current users.
+     * Then builds up new rankings.
+     */
+    /*public List<Document> getCurrentRankings() throws Exception {
+        if (latestMatch() == null)
+            return defaultRatingUsers(usersHavingCompiledPlayer());
+
+        List<Document> currentRankings = (List<Document>) latestMatch().get("ranks");
+        Set<String> userSet = new HashSet<>();
+        for (Document rank : currentRankings) {
+            userSet.add(rank.getString("username"));
+        }
+
+        List<String> usersNotInRanking = new ArrayList<>();
+        for (String username : usersHavingCompiledPlayer()) {
+            if (!userSet.contains(username)) {
+                usersNotInRanking.add(username);
+            }
+        }
+
+        List<Document> usersNotInRankingDoc = new ArrayList<>();
+        if (usersNotInRanking.size() > 0) {
+            usersNotInRankingDoc.addAll(defaultRatingUsers(usersNotInRanking));
+            currentRankings.addAll(usersNotInRankingDoc);
+        }
+
+        createRankings(currentRankings);
+
+        //System.out.println("number user = " + currentRankings.size());
+        return currentRankings;
+    }*/
+
 
     public void shutdown() {
         for (String match : playerMap.keySet())
@@ -84,7 +274,15 @@ public class TournamentManager implements Observer {
             System.out.println("............. Match is completed.");
 
             // shut down players and remove matchid
-            synchronized (playerMap) {
+            for (GamePlayer aPlayer : playerMap.get(match.getMatchId())) {
+                System.out.println("............. shutdown a player : " + aPlayer.getName());
+                aPlayer.shutdown();
+            }
+            playerMap.remove(match.getMatchId());
+            schedulingQueue.add(match);
+            return;
+
+            /*synchronized (playerMap) {
                 for (GamePlayer aPlayer : playerMap.get(match.getMatchId())) {
                     System.out.println("............. shutdown a player : " + aPlayer.getName());
                     aPlayer.shutdown();
@@ -92,20 +290,12 @@ public class TournamentManager implements Observer {
                 playerMap.remove(match.getMatchId());
             }
 
-            synchronized (busyUsers) {
-                busyUsers.removeAll(match.getPlayerNamesFromHost());
-            }
-
-            // update DB
-            // List<String> usernames = match.getPlayerNamesFromHost();
-            // if a tournament hasn't started, set player's skills to default
-            try {
-                //updateOneVsOneMatch(match);
-                updateRankings(match);
-            } catch (Exception e) {
-                e.printStackTrace();
+            synchronized (schedulingQueue) {
+                schedulingQueue.add(match);
             }
             return;
+            */
+
         }
 
         return;
@@ -119,6 +309,22 @@ public class TournamentManager implements Observer {
 
         List<Document> ranks = getCurrentRankings();
         matchLeastPlayedUserByBestMatchQuality(ranks);
+    }
+
+    public void updateSchdulingQueue() throws Exception {
+        if (schedulingQueue.isEmpty())
+            return;
+
+        System.out.println(">> updateSchdulingQueue");
+        Match match = schedulingQueue.remove(0);
+        for (String user: match.getPlayerNamesFromHost()) {
+            System.out.println("user = " + user);
+        }
+        updateRankings(match);
+        busyUsers.removeAll(match.getPlayerNamesFromHost());
+        /*synchronized (busyUsers) {
+            busyUsers.removeAll(match.getPlayerNamesFromHost());
+        }*/
     }
 
     private Collection<ITeam> setupTeams(Document userOne, Document userTwo) throws Exception {
@@ -140,10 +346,12 @@ public class TournamentManager implements Observer {
         Collections.shuffle(users, new Random(seed));
         List<String> pickedUsers = new ArrayList<>();
         for (String user : users) {
-            synchronized (busyUsers) {
+            if (!busyUsers.contains(user) && pickedUsers.size() < 2)
+                pickedUsers.add(user);
+            /*synchronized (busyUsers) {
                 if (!busyUsers.contains(user) && pickedUsers.size() < 2)
                     pickedUsers.add(user);
-            }
+            }*/
         }
 
         if (pickedUsers.size() == numPlayers) {
@@ -216,42 +424,14 @@ public class TournamentManager implements Observer {
                     }
                 }
 
+                /*synchronized (busyUsers) {
+                    busyUsers.addAll(pickedUsers);
+                }*/
+                busyUsers.addAll(pickedUsers);
                 playOneVsOne(pickedUsers);
                 return;
             }
         }
-    }
-
-    /*
-     * Finds new user not in current ranking, adds to a set of current users.
-     * Then builds up new rankings.
-     */
-    private List<Document> getCurrentRankings() throws Exception {
-        if (latestMatch(tournament) == null)
-            return defaultRatingUsers(usersInTournament());
-
-        List<Document> currentRankings = (List<Document>) latestMatch(tournament).get("ranks");
-        Set<String> userSet = new HashSet<>();
-        for (Document rank : currentRankings) {
-            userSet.add(rank.getString("username"));
-        }
-
-        List<String> usersNotInRanking = new ArrayList<>();
-        for (String username : usersInTournament()) {
-            if (!userSet.contains(username)) {
-                usersNotInRanking.add(username);
-            }
-        }
-
-        List<Document> usersNotInRankingDoc = new ArrayList<>();
-        if (usersNotInRanking.size() > 0) {
-            usersNotInRankingDoc.addAll(defaultRatingUsers(usersNotInRanking));
-            currentRankings.addAll(usersNotInRankingDoc);
-        }
-        createRankings(currentRankings);
-
-        //System.out.println("number user = " + currentRankings.size());
-        return currentRankings;
     }
 
     private void sortByNumberOfMatch(List<Document> ranks) {
@@ -271,39 +451,11 @@ public class TournamentManager implements Observer {
     }
 
     /*
-     * Returns a list of users having their players status 'compiled'
-     */
-    private List<String> usersInTournament() {
-        // "_id" required by API
-        List<Document> playersInTournament =
-                players.aggregate(
-                        asList(
-                                new Document("$match", new Document("tournament", tournament)),
-                                new Document("$group", new Document("_id", "$username"))
-                        )).into(new ArrayList<Document>());
-
-        List users = new ArrayList<String>();
-        for (Document aPlayer : playersInTournament) {
-            String username = aPlayer.get("_id").toString();
-            // System.out.println("username = " + username);
-            Document thisPlayer =
-                    players.find(and(
-                            eq("username", username),
-                            eq("tournament", tournament),
-                            eq("status", "compiled"))).first();
-
-            if (thisPlayer != null)
-                users.add(username);
-        }
-
-        return users;
-    }
-
-    /*
      * Updates rankings in database by match result.
      * Called after each match is finished.
      */
     private void updateRankings(Match match) throws Exception {
+        System.out.println("............. updateRankings.");
         // gets current rankings and put in a map
         Map<String, Document> userRankMap = new HashMap<>();
         for (Document rank : getCurrentRankings()) {
@@ -322,14 +474,13 @@ public class TournamentManager implements Observer {
             String username = entry.getKey().toString();
             Rating newRating = entry.getValue();
 
-            if (userRankMap.containsKey(username)) {
-                int numMatch = userRankMap.get(username).getInteger("numMatch") + 1;
-                userRankMap.put(username, new Document("username", username)
-                        .append("rating", newRating.getConservativeRating())
-                        .append("mu", newRating.getMean())
-                        .append("sigma", newRating.getStandardDeviation())
-                        .append("numMatch", numMatch));
-            }
+            int numMatch = userRankMap.get(username).getInteger("numMatch") + 1;
+            userRankMap.put(username, new Document("username", username)
+                .append("rating", newRating.getConservativeRating())
+                .append("mu", newRating.getMean())
+                .append("sigma", newRating.getStandardDeviation())
+                .append("numMatch", numMatch));
+
         }
 
         // gets a list of rankings from a map, then add field "rank" to each of them
@@ -398,12 +549,6 @@ public class TournamentManager implements Observer {
             }
         }
         return null;
-    }
-
-    private Document latestMatch(String tournament) {
-        if (matches.count(eq("tournament", tournament)) == 0)
-            return null;
-        return matches.find(eq("tournament", tournament)).sort(descending("createdAt")).first();
     }
 
     /*
@@ -493,50 +638,6 @@ public class TournamentManager implements Observer {
         bw.close();
     }
 
-    private void playGame(List<String> hostNames,
-                          List<String> playerNames,
-                          List<Integer> portNumbers,
-                          List<GamePlayer> gamePlayers,
-                          String gameKey) throws IOException, InterruptedException {
-        //DEBUG
-        System.out.println("play game by these users");
-        for (String player : playerNames)
-            System.out.println(">> " + player);
-
-        Game game = GameRepository.getDefaultRepository().getGame(gameKey);
-        int expectedRoles = Role.computeRoles(game.getRules()).size();
-        if (hostNames.size() != expectedRoles) {
-            throw new RuntimeException("Invalid number of players for game "
-                    + gameKey + ": " + hostNames.size() + " vs " + expectedRoles);
-        }
-
-        String matchId = tournament + "." + gameKey + "." + System.currentTimeMillis();
-        int startClock = 3;
-        int playClock = 14;
-        Match match = new Match(matchId, -1, startClock, playClock, game);
-        match.setPlayerNamesFromHost(playerNames);
-
-        // run players
-        for (GamePlayer aGamePlayer : gamePlayers) {
-            aGamePlayer.start();
-        }
-
-        // run the match
-        GameServer server = new GameServer(match, hostNames, portNumbers);
-        server.addObserver(this);
-        server.start();
-        // server.join();  ** Don't use "join", it makes other threads wait for this one.
-
-        // update players and match status
-        synchronized (playerMap) {
-            playerMap.put(matchId, gamePlayers);
-        }
-
-        synchronized (busyUsers) {
-            busyUsers.addAll(playerNames);
-        }
-    }
-
     private void playOneVsOne(List<String> pickedUsers) throws Exception {
         List<String> hostNames = new ArrayList<String>();
         List<Integer> portNumbers = new ArrayList<>();
@@ -559,6 +660,46 @@ public class TournamentManager implements Observer {
         }
 
         // playGame needs ranks(1,2,3) as a return object.
+    }
+
+    private void playGame(List<String> hostNames,
+                          List<String> playerNames,
+                          List<Integer> portNumbers,
+                          List<GamePlayer> gamePlayers,
+                          String gameKey) throws IOException, InterruptedException {
+        //DEBUG
+        System.out.println("play game by these users");
+        for (String player : playerNames)
+            System.out.println(">> " + player);
+
+        Game game = GameRepository.getDefaultRepository().getGame(gameKey);
+        int expectedRoles = Role.computeRoles(game.getRules()).size();
+        if (hostNames.size() != expectedRoles) {
+            throw new RuntimeException("Invalid number of players for game "
+                    + gameKey + ": " + hostNames.size() + " vs " + expectedRoles);
+        }
+
+        String matchId = tournament + "." + gameKey + "." + System.currentTimeMillis();
+        //int playClock = 3;
+        Match match = new Match(matchId, -1, startClock, playClock, game);
+        match.setPlayerNamesFromHost(playerNames);
+
+        // run players
+        for (GamePlayer aGamePlayer : gamePlayers) {
+            aGamePlayer.start();
+        }
+
+        // run the match
+        GameServer server = new GameServer(match, hostNames, portNumbers);
+        server.addObserver(this);
+        server.start();
+        // server.join();  ** Don't use "join", it makes other threads wait for this one.
+
+        // update players and match status
+        playerMap.put(matchId, gamePlayers);
+        /*synchronized (playerMap) {
+            playerMap.put(matchId, gamePlayers);
+        }*/
     }
 
 }

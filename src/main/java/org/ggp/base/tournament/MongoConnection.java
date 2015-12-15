@@ -24,6 +24,18 @@ public class MongoConnection {
         games = database.getCollection("games");
     }
 
+    public MongoCollection<Document> getTournaments() {
+        return tournaments;
+    }
+
+    public MongoCollection<Document> getPlayers() {
+        return players;
+    }
+
+    public MongoCollection<Document> getMatches() {
+        return matches;
+    }
+
     public void close() {
         mongoClient.close();
     }

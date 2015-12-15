@@ -35,6 +35,7 @@ public class Contest {
                     if (tournamentMap.get(tourName) == null)
                         tournamentMap.put(tourName, new TournamentManager(tourName, con, replay));
                     tournamentMap.get(tourName).matchMaking();
+                    tournamentMap.get(tourName).updateSchdulingQueue();
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

@@ -44,14 +44,10 @@ public class ReplayBuilder {
         return writer.toString();
     }
 
+    /*
+     * Return a list of game states in html representation
+     */
     public List getReplayList(String xml, String xsl) throws TransformerException, XPathExpressionException, IOException, SAXException, ParserConfigurationException {
-        /*
-        Return a list of game states in html representation
-         */
-
-        //String myxml = "<resp><status>good</status><msg>hi</msg></resp>";
-        //InputSource source = new InputSource(new StringReader(myxml));
-
         InputSource source = new InputSource(new StringReader(xml));
         DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
         DocumentBuilder db = dbf.newDocumentBuilder();
@@ -62,11 +58,6 @@ public class ReplayBuilder {
         XPath xpath = xpathFactory.newXPath();
         XPathExpression expr = xpath.compile("/match/herstory/state");
         NodeList nl = (NodeList) expr.evaluate(document, XPathConstants.NODESET);
-
-//        String msg = xpath.evaluate("/resp/msg", document);
-//        String status = xpath.evaluate("/resp/status", document);
-//
-//        String state = xpath.evaluate("/match", document);
 
         // For all '/state', transform each one to html
         List replayList = new ArrayList<String>();
