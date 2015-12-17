@@ -13,14 +13,14 @@ import java.util.HashMap;
 
 public class Contest {
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) throws NullPointerException, InterruptedException {
         // Deamon program to unzip and compile incoming players
         Submission submission = new Submission();
         Thread submissionThread = new Thread(submission);
         submissionThread.setDaemon(true);
         submissionThread.start();
 
-        // Run tournaments
+        // Runs tournaments
         MongoConnection con = new MongoConnection();
         ReplayBuilder replay = new ReplayBuilder();
         MongoCollection<Document> players = con.players;
@@ -28,7 +28,7 @@ public class Contest {
 
         Map<String, TournamentManager> tournamentMap = new HashMap<String, TournamentManager>();
         while (true) {
-            // each tournament does match making
+            // each tournament does match making and updates match
             for (Document aTournament : tournaments.find(eq("status", "running"))) {
                 String tourName = aTournament.getString("name");
                 try {

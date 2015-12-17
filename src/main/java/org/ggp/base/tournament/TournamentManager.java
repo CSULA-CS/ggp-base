@@ -6,7 +6,7 @@ import jskills.*;
 import jskills.trueskill.TwoPlayerTrueSkillCalculator;
 import org.apache.commons.io.FileUtils;
 import org.bson.Document;
-import org.bson.conversions.Bson;
+
 import org.ggp.base.player.GamePlayer;
 import org.ggp.base.player.gamer.Gamer;
 import org.ggp.base.server.GameServer;
@@ -17,7 +17,6 @@ import org.ggp.base.util.match.Match;
 import org.ggp.base.util.observer.Event;
 import org.ggp.base.util.observer.Observer;
 import org.ggp.base.util.statemachine.Role;
-import org.python.antlr.ast.Str;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -25,33 +24,27 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static com.mongodb.client.model.Filters.*;
-import static com.mongodb.client.model.Projections.excludeId;
-import static com.mongodb.client.model.Projections.fields;
-import static com.mongodb.client.model.Projections.include;
-import static com.mongodb.client.model.Sorts.ascending;
 import static com.mongodb.client.model.Sorts.descending;
 import static java.util.Arrays.asList;
 
 public class TournamentManager implements Observer {
-    private TwoPlayerTrueSkillCalculator twoPlayersCalculator;
-    private MongoConnection con;
-    protected MongoCollection<Document> games;
-    protected MongoCollection<Document> matches;
-    protected MongoCollection<Document> tournaments;
-    protected MongoCollection<Document> players;
     // map matchid with a list of players for that match
     private final Map<String, List<GamePlayer>> playerMap;
     private final List<Match> schedulingQueue;
     private final Set<String> busyUsers;
-    private String tournament;
     private final int numPlayers = 2;
-    private final int startClock = 3;
-    private final int playClock = 14;
+    protected MongoCollection<Document> games;
+    protected MongoCollection<Document> matches;
+    protected MongoCollection<Document> tournaments;
+    protected MongoCollection<Document> players;
+    private TwoPlayerTrueSkillCalculator twoPlayersCalculator;
+    private MongoConnection con;
+    private String tournament;
+    private int startClock = 3;
+    private int playClock = 14;
     private ReplayBuilder replayBuilder;
 
     public TournamentManager(String touneyName, MongoConnection connection, ReplayBuilder theReplay) {
@@ -62,14 +55,11 @@ public class TournamentManager implements Observer {
         players = con.players;
         games = con.games;
         tournament = touneyName;
-        busyUsers = new HashSet<String>();
-        playerMap = new HashMap<String, List<GamePlayer>>();
-        schedulingQueue = new ArrayList<Match>();
-//        busyUsers = Collections.synchronizedSet(new HashSet<String>());
-//        playerMap = Collections.synchronizedMap(new HashMap<String, List<GamePlayer>>());
-//        schedulingQueue = Collections.synchronizedList(new ArrayList<Match>());
+        // Make these collections synchronized in case if later we use threads to manage this class.
+        busyUsers = Collections.synchronizedSet(new HashSet<String>());
+        playerMap = Collections.synchronizedMap(new HashMap<String, List<GamePlayer>>());
+        schedulingQueue = Collections.synchronizedList(new ArrayList<Match>());
         replayBuilder = theReplay;
-
     }
 
     public UpdateResult addUser(String username) throws Exception {
@@ -91,12 +81,18 @@ public class TournamentManager implements Observer {
         players.insertOne(aPlayer);
     }
 
+    /*
+     * For testing: delete a user from this tournament
+     */
     public UpdateResult deleteUser(String username) {
         return tournaments.updateOne(eq("name", tournament),
                 new Document("$pull",
                     new Document("users", new Document("username", username))));
     }
 
+    /*
+     * For testing: delete a last uploaded player by username
+     */
     public Document deleteLatestPlayer(String username) {
         Date latestMatchDate =
             players.find(and(
@@ -112,6 +108,9 @@ public class TournamentManager implements Observer {
             ));
     }
 
+    /*
+     * For testing: check if this tournament has this user
+     */
     public boolean hasThisUser(String userToAdd) {
         Document elemMatch = new Document("users.username", userToAdd);
         if (tournaments.find(and(eq("name", tournament), new Document("elemMatch", elemMatch))).first() != null)
@@ -119,37 +118,50 @@ public class TournamentManager implements Observer {
         return false;
     }
 
+    /*
+     * For testing: check if this user has any compiled players
+     **  Maybe need this method later **
+     */
+    public boolean doesUserHaveCompiledPlayer(String username) {
+        Document aPlayer =
+                players.find(
+                        and(
+                                eq("tournament", tournament),
+                                eq("username", username))
+                ).sort(descending("createdAt")).first();
+        if (aPlayer != null)
+            return true;
+        return false;
+    }
+
+    /*
+     * For testing: returns a list of compiled player by username
+     */
+    public List<Document> compiledPlayersByUser(String username) {
+        return
+                players.find(
+                        and(
+                                eq("tournament", tournament),
+                                eq("username", username),
+                                eq("status", "compiled")
+                        )
+                ).into(new ArrayList<Document>());
+    }
+
+    /*
+     * Returns a document of latest match
+     */
     public Document latestMatch() {
         if (matches.count(eq("tournament", tournament)) == 0)
             return null;
         return matches.find(eq("tournament", tournament)).sort(descending("createdAt")).first();
     }
 
+    /*
+     * Returns a list of documents of username
+     */
     public List<Document> usersInTournament() {
         return (List) tournaments.find(and(eq("name", tournament))).first().get("users");
-    }
-
-    public boolean doesUserHaveCompiledPlayer(String username) {
-        Document aPlayer =
-            players.find(
-                and(
-                    eq("tournament", tournament),
-                    eq("username", username))
-            ).sort(descending("createdAt")).first();
-        if (aPlayer != null)
-            return true;
-        return false;
-    }
-
-    public List<Document> compiledPlayersByUser(String username) {
-        return
-            players.find(
-                and(
-                    eq("tournament", tournament),
-                    eq("username", username),
-                    eq("status", "compiled")
-                )
-            ).into(new ArrayList<Document>());
     }
 
     /*
@@ -191,7 +203,7 @@ public class TournamentManager implements Observer {
             return defaultRatingUsers(usersHavingCompiledPlayer());
 
         // latest match
-        System.out.println("............. getCurrentRankings with latest match.");
+        System.out.println(">> getCurrentRankings");
         List<Document> rankings = (List) latestMatch().get("ranks");
         List<String> currentUsers = new ArrayList();
         for (Document rank: rankings)
@@ -208,7 +220,6 @@ public class TournamentManager implements Observer {
 
 
         if (newUsers.size() > 0) {
-            System.out.println("Add new user to ranking");
             List<String> defaultUsers = new ArrayList();
             for (Document user: newUsers)
                 defaultUsers.add(user.getString("username"));
@@ -254,6 +265,9 @@ public class TournamentManager implements Observer {
     }*/
 
 
+    /*
+     * Shutdown all players
+     */
     public void shutdown() {
         for (String match : playerMap.keySet())
             for (GamePlayer aPlayer : playerMap.get(match))
@@ -274,15 +288,7 @@ public class TournamentManager implements Observer {
             System.out.println("............. Match is completed.");
 
             // shut down players and remove matchid
-            for (GamePlayer aPlayer : playerMap.get(match.getMatchId())) {
-                System.out.println("............. shutdown a player : " + aPlayer.getName());
-                aPlayer.shutdown();
-            }
-            playerMap.remove(match.getMatchId());
-            schedulingQueue.add(match);
-            return;
-
-            /*synchronized (playerMap) {
+            synchronized (playerMap) {
                 for (GamePlayer aPlayer : playerMap.get(match.getMatchId())) {
                     System.out.println("............. shutdown a player : " + aPlayer.getName());
                     aPlayer.shutdown();
@@ -294,8 +300,6 @@ public class TournamentManager implements Observer {
                 schedulingQueue.add(match);
             }
             return;
-            */
-
         }
 
         return;
@@ -305,28 +309,30 @@ public class TournamentManager implements Observer {
      * Matches a least played user with an opponent making best match quality.
      */
     public void matchMaking() throws Exception {
-        System.out.println("---------------------------");
-
         List<Document> ranks = getCurrentRankings();
-        matchLeastPlayedUserByBestMatchQuality(ranks);
+        matchLeastPlayedUserWithBestOpponent(ranks);
     }
 
+    /*
+     * Update rankings for each match in a queue of matches
+     */
     public void updateSchdulingQueue() throws Exception {
-        if (schedulingQueue.isEmpty())
-            return;
-
-        System.out.println(">> updateSchdulingQueue");
-        Match match = schedulingQueue.remove(0);
-        for (String user: match.getPlayerNamesFromHost()) {
-            System.out.println("user = " + user);
+        while (!schedulingQueue.isEmpty()) {
+            System.out.println(">> updateSchdulingQueue");
+            Match match = schedulingQueue.remove(0);
+            for (String user: match.getPlayerNamesFromHost()) {
+                System.out.println("user = " + user);
+            }
+            updateRankings(match);
+            synchronized (busyUsers) {
+                busyUsers.removeAll(match.getPlayerNamesFromHost());
+            }
         }
-        updateRankings(match);
-        busyUsers.removeAll(match.getPlayerNamesFromHost());
-        /*synchronized (busyUsers) {
-            busyUsers.removeAll(match.getPlayerNamesFromHost());
-        }*/
     }
 
+    /*
+     * TrueSkill setup for two-player game
+     */
     private Collection<ITeam> setupTeams(Document userOne, Document userTwo) throws Exception {
         Player<String> player1 = new Player<>(userOne.getString("username"));
         Player<String> player2 = new Player<>(userTwo.getString("username"));
@@ -346,12 +352,10 @@ public class TournamentManager implements Observer {
         Collections.shuffle(users, new Random(seed));
         List<String> pickedUsers = new ArrayList<>();
         for (String user : users) {
-            if (!busyUsers.contains(user) && pickedUsers.size() < 2)
-                pickedUsers.add(user);
-            /*synchronized (busyUsers) {
+            synchronized (busyUsers) {
                 if (!busyUsers.contains(user) && pickedUsers.size() < 2)
                     pickedUsers.add(user);
-            }*/
+            }
         }
 
         if (pickedUsers.size() == numPlayers) {
@@ -361,79 +365,85 @@ public class TournamentManager implements Observer {
         System.out.println("Not enough players");
     }
 
-
-    /* **** Currently Not used *******
-     * Matches the least played users with similar skilled player. Match quality > 0.5
+    /*
+     * Matches least played user with an opponent making best match quality.
+     * Stabilised rankings means we can't find good match by quality(lower_bound_quality).
+     * If rankings are stabilised, picks first user uploading a player after latest match and start new match.
      */
-    private boolean matchLeastPlayedUserWithSimilarSkillOpponent(List<Document> ranks) throws Exception {
+    private void matchLeastPlayedUserWithBestOpponent(List<Document> ranks) throws Exception {
         // DEBUG
-        System.out.print("matchLeastPlayedUserWithSimilarSkillOpponent::");
-
+        System.out.println(">> matchLeastPlayedUserWithBestOpponent");
+        double lower_bound_quality = 0.48;
         sortByNumberOfMatch(ranks);
-        List<String> pickedUsers = new ArrayList<>();
-        Document leastPlayedUserDoc = ranks.get(0);
-        pickedUsers.add(leastPlayedUserDoc.getString("username"));
-        sortByRating(ranks);
-
-        for (Document rank : ranks) {
-            if (!busyUsers.contains(rank.getString("username")) && rank != leastPlayedUserDoc) {
-                Collection<ITeam> teams = setupTeams(leastPlayedUserDoc, rank);
-                if (twoPlayersCalculator.calculateMatchQuality(GameInfo.getDefaultGameInfo(), teams) > 0.38) {
-                    // adds an opponent.
-                    pickedUsers.add(rank.getString("username"));
-                    for (String username : pickedUsers)
-                        System.out.println("username: " + username);
-
-                    playOneVsOne(pickedUsers);
-                    return true;
-                }
-            }
+        for (Document p1: ranks) {
+            if (bestMatchByCondition(ranks, p1, lower_bound_quality))
+                return;
         }
 
-        System.out.println("No match!");
-        return false;
+        System.out.println("rankings stabilised !");
+        Document freshPlayer = findFreshPlayer();
+        if (freshPlayer != null) {
+            lower_bound_quality = -100.00;
+            bestMatchByCondition(ranks, freshPlayer, lower_bound_quality);
+        }
+        System.out.println("no fresh player");
     }
 
     /*
-     * Matches a least played user with an opponent making best match quality
+     * Returns players document created after the latest match
      */
-    private void matchLeastPlayedUserByBestMatchQuality(List<Document> ranks) throws Exception {
-        // DEBUG
-        System.out.print("matchLeastPlayedUserByBestMatchQuality::");
+    private Document findFreshPlayer()  {
+        if (latestMatch() == null)
+            return null;
 
-        sortByNumberOfMatch(ranks);
+        return
+            players.find(
+                and(
+                    eq("tournament", tournament),
+                    gt("createdAt", latestMatch().getDate("createdAt"))
+            )).first();
+    }
+
+    /*
+     * Matches p1 player to best opponent in a tournament.
+     */
+    private boolean bestMatchByCondition(List<Document> rankings, Document p1, double lower_bound_quality) throws Exception {
+        double bestQuality = lower_bound_quality;
         List<String> pickedUsers = new ArrayList<>();
-        // Finds which couple makes a best match quality.
-        double bestQuality = -100.00;
-        for (Document p1 : ranks) {
-            if (!busyUsers.contains(p1.getString("username"))) {
-                for (int i = 0; i < ranks.size(); i++) {
-                    Document p2 = ranks.get(i);
-                    if (!busyUsers.contains(p2.getString("username")) && p1.getString("username") != p2.getString("username")) {
-                        Collection<ITeam> teams = setupTeams(p1, p2);
-                        double quality = twoPlayersCalculator.calculateMatchQuality(GameInfo.getDefaultGameInfo(), teams);
-                        if (quality > bestQuality) {
 
-                            bestQuality = quality;
-                            if (pickedUsers.size() > 0)
-                                pickedUsers.clear();
+        for (int i = 0; i < rankings.size(); i++) {
+            Document p2 = rankings.get(i);
+            String user1 = p1.getString("username");
+            String user2 = p2.getString("username");
+            Collection<ITeam> teams = setupTeams(p1, p2);
+            double quality = twoPlayersCalculator.calculateMatchQuality(GameInfo.getDefaultGameInfo(), teams);
 
-                            pickedUsers.add(p1.getString("username"));
-                            pickedUsers.add(p2.getString("username"));
-                        }
-                    }
-                }
+            if (!busyUsers.contains(user1)
+                && !busyUsers.contains(user2)
+                && !user1.equals(user2)
+                && quality > bestQuality) {
 
-                /*synchronized (busyUsers) {
-                    busyUsers.addAll(pickedUsers);
-                }*/
-                busyUsers.addAll(pickedUsers);
-                playOneVsOne(pickedUsers);
-                return;
+                    bestQuality = quality;
+                    pickedUsers.clear();
+                    pickedUsers.add(user1);
+                    pickedUsers.add(user2);
             }
+        }
+
+        if (pickedUsers.isEmpty()) {
+            return false;
+        } else {
+            synchronized (busyUsers) {
+                busyUsers.addAll(pickedUsers);
+            }
+            playOneVsOne(pickedUsers);
+            return true;
         }
     }
 
+    /*
+     * Sorts rankings by number of match users have played
+     */
     private void sortByNumberOfMatch(List<Document> ranks) {
         Collections.sort(ranks, new Comparator<Document>() {
             public int compare(Document d1, Document d2) {
@@ -442,6 +452,9 @@ public class TournamentManager implements Observer {
         });
     }
 
+    /*
+     * Sorts rankings by user ratings
+     */
     private void sortByRating(List<Document> ranks) {
         Collections.sort(ranks, new Comparator<Document>() {
             public int compare(Document d1, Document d2) {
@@ -581,7 +594,6 @@ public class TournamentManager implements Observer {
         return defaultUsers;
     }
 
-
     /*
      * Adds field "ranks" to a list of rankings
      */
@@ -594,6 +606,9 @@ public class TournamentManager implements Observer {
         }
     }
 
+    /*
+     * Adds new match to DB
+     */
     private void insertNewMatch(String tournamentName, Match match, List<Document> matchResult, List<Document> ranks) throws Exception {
         String tour_id = tournaments.find(eq("name", tournamentName)).first().getString("_id");
         Document thisMatch = new Document("tournament", tournament)
@@ -638,6 +653,9 @@ public class TournamentManager implements Observer {
         bw.close();
     }
 
+    /*
+     * GGP setup for two-player game
+     */
     private void playOneVsOne(List<String> pickedUsers) throws Exception {
         List<String> hostNames = new ArrayList<String>();
         List<Integer> portNumbers = new ArrayList<>();
@@ -662,15 +680,18 @@ public class TournamentManager implements Observer {
         // playGame needs ranks(1,2,3) as a return object.
     }
 
+    /*
+     * Plays two-player game by GGP
+     */
     private void playGame(List<String> hostNames,
                           List<String> playerNames,
                           List<Integer> portNumbers,
                           List<GamePlayer> gamePlayers,
                           String gameKey) throws IOException, InterruptedException {
         //DEBUG
-        System.out.println("play game by these users");
+        System.out.println(">> playGame");
         for (String player : playerNames)
-            System.out.println(">> " + player);
+            System.out.println("user " + player);
 
         Game game = GameRepository.getDefaultRepository().getGame(gameKey);
         int expectedRoles = Role.computeRoles(game.getRules()).size();
@@ -696,10 +717,9 @@ public class TournamentManager implements Observer {
         // server.join();  ** Don't use "join", it makes other threads wait for this one.
 
         // update players and match status
-        playerMap.put(matchId, gamePlayers);
-        /*synchronized (playerMap) {
+        synchronized (playerMap) {
             playerMap.put(matchId, gamePlayers);
-        }*/
+        }
     }
 
 }
