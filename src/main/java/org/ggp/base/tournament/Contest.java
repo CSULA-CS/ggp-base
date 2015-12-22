@@ -13,11 +13,11 @@ import java.util.HashMap;
 
 public class Contest {
 
-    public static void main(String[] args) throws NullPointerException, InterruptedException {
+    public static void main(String[] args) throws InterruptedException {
         // Deamon program to unzip and compile incoming players
         Submission submission = new Submission();
         Thread submissionThread = new Thread(submission);
-        submissionThread.setDaemon(true);
+        //submissionThread.setDaemon(true);
         submissionThread.start();
 
         // Runs tournaments
@@ -35,7 +35,6 @@ public class Contest {
                     if (tournamentMap.get(tourName) == null)
                         tournamentMap.put(tourName, new TournamentManager(tourName, con, replay));
                     tournamentMap.get(tourName).matchMaking();
-                    tournamentMap.get(tourName).updateSchdulingQueue();
                 } catch (Exception e) {
                     e.printStackTrace();
                 }

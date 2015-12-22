@@ -33,7 +33,7 @@ import static java.util.Arrays.asList;
 public class TournamentManager implements Observer {
     // map matchid with a list of players for that match
     private final Map<String, List<GamePlayer>> playerMap;
-    private final List<Match> schedulingQueue;
+    private final List<Match> schedulingQueue; // schedulingQueue is a queue of finished matches but not inserted to DB yet.
     private final Set<String> busyUsers;
     private final int numPlayers = 2;
     protected MongoCollection<Document> games;
@@ -60,6 +60,8 @@ public class TournamentManager implements Observer {
         playerMap = Collections.synchronizedMap(new HashMap<String, List<GamePlayer>>());
         schedulingQueue = Collections.synchronizedList(new ArrayList<Match>());
         replayBuilder = theReplay;
+
+        startSchedulingThread();
     }
 
     public UpdateResult addUser(String username) throws Exception {
@@ -227,7 +229,7 @@ public class TournamentManager implements Observer {
             rankings.addAll(newUsersWithDefaultRatings);
         }
 
-        //createRankings(rankings);
+
         return rankings;
     }
 
@@ -266,7 +268,7 @@ public class TournamentManager implements Observer {
 
 
     /*
-     * Shutdown all players
+     * Shuts down all players
      */
     public void shutdown() {
         for (String match : playerMap.keySet())
@@ -373,7 +375,7 @@ public class TournamentManager implements Observer {
     private void matchLeastPlayedUserWithBestOpponent(List<Document> ranks) throws Exception {
         // DEBUG
         System.out.println(">> matchLeastPlayedUserWithBestOpponent");
-        double lower_bound_quality = 0.48;
+        double lower_bound_quality = -100.00;  // normally between 0.00 - 1.00, we use -100.00 to find best opponent.
         sortByNumberOfMatch(ranks);
         for (Document p1: ranks) {
             if (bestMatchByCondition(ranks, p1, lower_bound_quality))
@@ -410,14 +412,15 @@ public class TournamentManager implements Observer {
     private boolean bestMatchByCondition(List<Document> rankings, Document p1, double lower_bound_quality) throws Exception {
         double bestQuality = lower_bound_quality;
         List<String> pickedUsers = new ArrayList<>();
-
+        System.out.println("ranking size = " + rankings.size());
         for (int i = 0; i < rankings.size(); i++) {
             Document p2 = rankings.get(i);
             String user1 = p1.getString("username");
             String user2 = p2.getString("username");
             Collection<ITeam> teams = setupTeams(p1, p2);
             double quality = twoPlayersCalculator.calculateMatchQuality(GameInfo.getDefaultGameInfo(), teams);
-
+            System.out.println("user = " + user1);
+            System.out.println("user = " + user2);
             if (!busyUsers.contains(user1)
                 && !busyUsers.contains(user2)
                 && !user1.equals(user2)
@@ -467,7 +470,7 @@ public class TournamentManager implements Observer {
      * Updates rankings in database by match result.
      * Called after each match is finished.
      */
-    private void updateRankings(Match match) throws Exception {
+    private void updateRankings(Match match)  throws Exception {
         System.out.println("............. updateRankings.");
         // gets current rankings and put in a map
         Map<String, Document> userRankMap = new HashMap<>();
@@ -565,7 +568,7 @@ public class TournamentManager implements Observer {
     }
 
     /*
-     * Returns username and its score of a match.
+     * Returns username and its score of the match.
      */
     private List<Document> matchResult(Match match) {
         // match result
@@ -719,6 +722,43 @@ public class TournamentManager implements Observer {
         // update players and match status
         synchronized (playerMap) {
             playerMap.put(matchId, gamePlayers);
+        }
+    }
+
+    public void startSchedulingThread() {
+        new SchedulingThread().start();
+    }
+
+    /*
+     * schedulingQueue is a queue of finished matches but not inserted to DB yet.
+     * This thread checks every a second if any new match in the queue, then reads info about the match, update rankings
+     * and updates DB.
+     */
+    class SchedulingThread extends Thread {
+        @Override
+        public void run() {
+            while (true) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException ie) {
+                    ;
+                }
+
+                if (!schedulingQueue.isEmpty()) {
+                    System.out.println(">> updateSchdulingQueue");
+                    Match match = schedulingQueue.remove(0);
+                    
+                    try {
+                        updateRankings(match);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                    synchronized (busyUsers) {
+                        busyUsers.removeAll(match.getPlayerNamesFromHost());
+                    }
+                }
+
+            }
         }
     }
 
