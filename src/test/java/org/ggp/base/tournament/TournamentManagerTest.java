@@ -15,7 +15,7 @@ public class TournamentManagerTest extends Assert {
             String tourName = "tictactoe";
             String userToAdd = "user0";
             String randomPlayerPath = "/Users/Amata/.ggp-server/compiled/myRandomPlayer-Thu Dec 03 2015 16:33:15 GMT-0800 (PST)";
-            TournamentManager tm = new TournamentManager(tourName, con, null);
+            TournamentManager tm = new TournamentManager(tourName, con);
             tm.deleteLatestPlayer(userToAdd);
             tm.deleteUser(userToAdd);
 

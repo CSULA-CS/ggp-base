@@ -17,12 +17,16 @@ public class Contest {
         // Deamon program to unzip and compile incoming players
         Submission submission = new Submission();
         Thread submissionThread = new Thread(submission);
-        //submissionThread.setDaemon(true);
         submissionThread.start();
+
+        // Updates game list to sync with game repo
+        PopulateGames pGame = new PopulateGames();
+        Thread pGameT = new Thread(pGame);
+        pGameT.start();
+
 
         // Runs tournaments
         MongoConnection con = new MongoConnection();
-        ReplayBuilder replay = new ReplayBuilder();
         MongoCollection<Document> players = con.players;
         MongoCollection<Document> tournaments = con.tournaments;
 
@@ -33,7 +37,7 @@ public class Contest {
                 String tourName = aTournament.getString("name");
                 try {
                     if (tournamentMap.get(tourName) == null)
-                        tournamentMap.put(tourName, new TournamentManager(tourName, con, replay));
+                        tournamentMap.put(tourName, new TournamentManager(tourName, con));
                     tournamentMap.get(tourName).matchMaking();
                 } catch (Exception e) {
                     e.printStackTrace();

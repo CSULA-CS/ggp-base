@@ -13,15 +13,22 @@ import org.ggp.base.server.GameServer;
 import org.ggp.base.server.event.ServerMatchUpdatedEvent;
 import org.ggp.base.util.game.Game;
 import org.ggp.base.util.game.GameRepository;
+import org.ggp.base.util.gdl.grammar.GdlSentence;
 import org.ggp.base.util.match.Match;
 import org.ggp.base.util.observer.Event;
 import org.ggp.base.util.observer.Observer;
 import org.ggp.base.util.statemachine.Role;
+import org.ggp.base.util.ui.GameStateRenderer;
+import org.xml.sax.SAXException;
 
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.TransformerException;
+import javax.xml.xpath.XPathExpressionException;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.*;
@@ -31,11 +38,15 @@ import static com.mongodb.client.model.Sorts.descending;
 import static java.util.Arrays.asList;
 
 public class TournamentManager implements Observer {
+    private final int numPlayers;
     // map matchid with a list of players for that match
     private final Map<String, List<GamePlayer>> playerMap;
     private final List<Match> schedulingQueue; // schedulingQueue is a queue of finished matches but not inserted to DB yet.
     private final Set<String> busyUsers;
-    private final int numPlayers = 2;
+    // game info
+    private final String gameName;
+    private final String gameKey;
+    private final Game game;
     protected MongoCollection<Document> games;
     protected MongoCollection<Document> matches;
     protected MongoCollection<Document> tournaments;
@@ -45,9 +56,8 @@ public class TournamentManager implements Observer {
     private String tournament;
     private int startClock = 3;
     private int playClock = 14;
-    private ReplayBuilder replayBuilder;
 
-    public TournamentManager(String touneyName, MongoConnection connection, ReplayBuilder theReplay) {
+    public TournamentManager(String touneyName, MongoConnection connection) {
         twoPlayersCalculator = new TwoPlayerTrueSkillCalculator();
         con = connection;
         matches = con.matches;
@@ -59,7 +69,12 @@ public class TournamentManager implements Observer {
         busyUsers = Collections.synchronizedSet(new HashSet<String>());
         playerMap = Collections.synchronizedMap(new HashMap<String, List<GamePlayer>>());
         schedulingQueue = Collections.synchronizedList(new ArrayList<Match>());
-        replayBuilder = theReplay;
+
+        // Computes number of roles/players for this game.
+        gameName = tournaments.find(eq("name", tournament)).first().getString("game");
+        gameKey = games.find(eq("name", gameName)).first().getString("key");
+        game = GameRepository.getDefaultRepository().getGame(gameKey);
+        numPlayers = Role.computeRoles(game.getRules()).size();
 
         startSchedulingThread();
     }
@@ -126,11 +141,11 @@ public class TournamentManager implements Observer {
      */
     public boolean doesUserHaveCompiledPlayer(String username) {
         Document aPlayer =
-                players.find(
-                        and(
-                                eq("tournament", tournament),
-                                eq("username", username))
-                ).sort(descending("createdAt")).first();
+            players.find(
+                and(
+                    eq("tournament", tournament),
+                    eq("username", username))
+            ).sort(descending("createdAt")).first();
         if (aPlayer != null)
             return true;
         return false;
@@ -141,13 +156,13 @@ public class TournamentManager implements Observer {
      */
     public List<Document> compiledPlayersByUser(String username) {
         return
-                players.find(
-                        and(
-                                eq("tournament", tournament),
-                                eq("username", username),
-                                eq("status", "compiled")
-                        )
-                ).into(new ArrayList<Document>());
+            players.find(
+                and(
+                    eq("tournament", tournament),
+                    eq("username", username),
+                    eq("status", "compiled")
+                )
+            ).into(new ArrayList<Document>());
     }
 
     /*
@@ -610,6 +625,20 @@ public class TournamentManager implements Observer {
     }
 
     /*
+     * Gets xhtml for game states using in replays
+     */
+    public List getXHTMLReplay(Match match) throws TransformerException, XPathExpressionException, IOException, SAXException, ParserConfigurationException {
+        String XSL = match.getGame().getStylesheet();
+        List xhtmlList = new ArrayList<>();
+        List<Set<GdlSentence>> stateList = match.getStateHistory();
+        for (Set<GdlSentence> state : stateList) {
+            xhtmlList.add(GameStateRenderer.getXHTML(Match.renderStateXML(state), XSL));
+        }
+
+        return xhtmlList;
+    }
+
+    /*
      * Adds new match to DB
      */
     private void insertNewMatch(String tournamentName, Match match, List<Document> matchResult, List<Document> ranks) throws Exception {
@@ -619,7 +648,7 @@ public class TournamentManager implements Observer {
                 .append("match_id", match.getMatchId())
                 .append("result", matchResult)
                 .append("ranks", ranks)
-                .append("replay", replayBuilder.getReplayList(match.toXML(), match.getGame().getStylesheet()))
+                .append("replay", getXHTMLReplay(match))
                 .append("createdAt", new Date());
         matches.insertOne(thisMatch);
     }
@@ -660,6 +689,11 @@ public class TournamentManager implements Observer {
      * GGP setup for two-player game
      */
     private void playOneVsOne(List<String> pickedUsers) throws Exception {
+        if (pickedUsers.size() != 2) {
+            System.out.println("Not enough users to play 1 vs 1 !!!, bye");
+            return;
+        }
+
         List<String> hostNames = new ArrayList<String>();
         List<Integer> portNumbers = new ArrayList<>();
         List<String> playerNames = new ArrayList<String>();
@@ -673,13 +707,7 @@ public class TournamentManager implements Observer {
             playerNames.add(username);
         }
 
-        String gameName = tournaments.find(eq("name", tournament)).first().getString("game");
-        String gameKey = games.find(eq("name", gameName)).first().getString("key");
-        if (gamePlayers.size() == numPlayers) {
-            playGame(hostNames, playerNames, portNumbers, gamePlayers, gameKey);
-            return;
-        }
-
+        playGame(hostNames, playerNames, portNumbers, gamePlayers, gameKey);
         // playGame needs ranks(1,2,3) as a return object.
     }
 
@@ -696,15 +724,12 @@ public class TournamentManager implements Observer {
         for (String player : playerNames)
             System.out.println("user " + player);
 
-        Game game = GameRepository.getDefaultRepository().getGame(gameKey);
-        int expectedRoles = Role.computeRoles(game.getRules()).size();
-        if (hostNames.size() != expectedRoles) {
+        if (hostNames.size() != numPlayers) {
             throw new RuntimeException("Invalid number of players for game "
-                    + gameKey + ": " + hostNames.size() + " vs " + expectedRoles);
+                    + gameKey + ": " + hostNames.size() + " vs " + numPlayers);
         }
 
         String matchId = tournament + "." + gameKey + "." + System.currentTimeMillis();
-        //int playClock = 3;
         Match match = new Match(matchId, -1, startClock, playClock, game);
         match.setPlayerNamesFromHost(playerNames);
 
@@ -747,7 +772,7 @@ public class TournamentManager implements Observer {
                 if (!schedulingQueue.isEmpty()) {
                     System.out.println(">> updateSchdulingQueue");
                     Match match = schedulingQueue.remove(0);
-                    
+
                     try {
                         updateRankings(match);
                     } catch (Exception e) {

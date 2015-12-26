@@ -101,6 +101,30 @@ public class GameStateRenderer {
         userAgent.shrinkImageCache();
     }
 
+    /*
+     * Same as getXHTMLfromGameXML but it is public
+     */
+    public static String getXHTML(String gameXML, String XSL) {
+        XSL = XSL.replace("<!DOCTYPE stylesheet [<!ENTITY ROOT \"http://games.ggp.org/base\">]>", "");
+        XSL = XSL.replace("&ROOT;", "http://games.ggp.org/base").trim();
+
+        IOString game = new IOString(gameXML);
+        IOString xslIOString = new IOString(XSL);
+        IOString content = new IOString("");
+        try {
+            TransformerFactory tFactory = TransformerFactory.newInstance();
+            Transformer transformer = tFactory.newTransformer(new StreamSource(xslIOString.getInputStream()));
+            transformer.setParameter("width", defaultSize.getWidth()-40);
+            transformer.setParameter("height", defaultSize.getHeight()-40);
+            transformer.transform(new StreamSource(game.getInputStream()),
+                    new StreamResult(content.getOutputStream()));
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
+        return content.getString();
+    }
+
     private static String getXHTMLfromGameXML(String gameXML, String XSL) {
         XSL = XSL.replace("<!DOCTYPE stylesheet [<!ENTITY ROOT \"http://games.ggp.org/base\">]>", "");
         XSL = XSL.replace("&ROOT;", "http://games.ggp.org/base").trim();
