@@ -1,17 +1,11 @@
 package org.ggp.base.tournament;
 
-import org.ggp.base.player.GamePlayer;
-import org.ggp.base.player.gamer.Gamer;
-import org.ggp.base.player.gamer.statemachine.sample.SampleGamer;
-
 import net.lingala.zip4j.exception.ZipException;
 import net.lingala.zip4j.core.ZipFile;
 
 import com.mongodb.MongoClient;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
-import com.mongodb.Block;
 import static com.mongodb.client.model.Sorts.*;
 import static com.mongodb.client.model.Filters.*;
 import org.bson.Document;
@@ -22,30 +16,15 @@ import javax.tools.ToolProvider;
 import javax.tools.StandardJavaFileManager;
 
 import org.apache.commons.io.FileUtils;
-import org.python.antlr.op.Sub;
-
 import java.io.File;
-import java.nio.file.Files;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Collection;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.Queue;
-
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLClassLoader;
-
 import java.io.IOException;
-import java.lang.IllegalStateException;
-import java.lang.RuntimeException;
 
 
 /*
-*   Some printlns to be removed
+*   A thread for unzipping and compiling uploaded players.
+*   A user has to store java files/packages in one package, then compress that package into one zip file.
+*   Note: Some printlns to be removed
 */
 class Submission implements Runnable {
     private static final String home = System.getProperty("user.home");
@@ -153,6 +132,7 @@ class Submission implements Runnable {
                 }
             }
 
+            // Sleeps for 5 seconds
             try {
                 Thread.currentThread().sleep(5 * 1000);
             } catch (InterruptedException e) {
