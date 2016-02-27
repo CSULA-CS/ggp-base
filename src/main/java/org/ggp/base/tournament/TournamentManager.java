@@ -496,12 +496,11 @@ public class TournamentManager implements Observer {
         if (latestMatch() == null)
             return null;
 
-        return
-                players.find(
-                        and(
-                                eq("tournament_id", tourid),
-                                gt("createdAt", latestMatch().getDate("createdAt"))
-                        )).first();
+        return players.find(
+            and(
+                eq("tournament_id", tourid),
+                gt("createdAt", latestMatch().getDate("createdAt"))
+            )).first();
 
         /*return
             players.find(
