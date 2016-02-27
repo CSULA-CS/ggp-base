@@ -35,9 +35,10 @@ public class Contest {
             // each tournament does match making and updates match
             for (Document aTournament : tournaments.find(eq("status", "running"))) {
                 String tourName = aTournament.getString("name");
+                String tourid = aTournament.getString("_id");
                 try {
                     if (tournamentMap.get(tourName) == null)
-                        tournamentMap.put(tourName, new TournamentManager(tourName, con));
+                        tournamentMap.put(tourName, new TournamentManager(tourid, tourName, con));
                     tournamentMap.get(tourName).matchMaking();
                 } catch (Exception e) {
                     e.printStackTrace();
