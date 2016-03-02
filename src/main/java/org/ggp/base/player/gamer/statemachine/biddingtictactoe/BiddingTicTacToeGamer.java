@@ -185,6 +185,7 @@ public abstract class BiddingTicTacToeGamer extends SampleGamer {
     protected Move mark(int row, int col) throws MoveDefinitionException {
         List<Move> moves = getStateMachine().getLegalMoves(getCurrentState(), getRole());
         for (Move move : moves) {
+            //move.getContents().toSentence().getName()
             //System.out.println("move = " + move.toString());
             // format:  ( mark col row )
             // example: ( mark 1 3 )
@@ -215,6 +216,7 @@ public abstract class BiddingTicTacToeGamer extends SampleGamer {
         return selection;
     }*/
 
+    // ** constructMyMove(), decideMyMove, selectMove
     public Move makeMyMove() throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException {
 
         if (isBidding()) {

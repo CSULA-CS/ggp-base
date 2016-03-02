@@ -22,6 +22,7 @@ import org.ggp.base.util.statemachine.Role;
 import org.ggp.base.util.ui.GameStateRenderer;
 import org.xml.sax.SAXException;
 
+import javax.print.Doc;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.xpath.XPathExpressionException;
@@ -737,9 +738,9 @@ public class TournamentManager implements Observer {
      * Adds new match to DB
      */
     private void insertNewMatch(String tournamentName, Match match, List<Document> matchResult, List<Document> ranks) throws Exception {
-        String tour_id = tournaments.find(eq("name", tournamentName)).first().getString("_id");
+        // String tour_id = tournaments.find(eq("name", tournamentName)).first().getString("_id");
         Document thisMatch = new Document("tournament", tournament)
-                .append("tournament_id", tour_id)
+                .append("tournament_id", tourid)
                 .append("match_id", match.getMatchId())
                 .append("result", matchResult)
                 .append("ranks", ranks)
@@ -748,9 +749,25 @@ public class TournamentManager implements Observer {
         matches.insertOne(thisMatch);
 
         // improves loading time of the leader board when a number of users reaches 1,000.
-        tournaments.updateOne(
-                new Document("name", tournamentName),
-                new Document("$set", new Document("lastMatchId", thisMatch.get("_id"))));
+        // Creates collection leaderboards to store only rankings.
+        // One document per tournament.
+
+
+        Document rankings = new Document("ranks", ranks);
+        // Adds new rankings to leaderboards collection
+        Object leaderBoardObj =
+                tournaments.find(new Document("_id", tourid)).first().get("leaderBoardId");
+
+        // if there are some matches already, updates the leader board.
+        if (leaderBoardObj instanceof ObjectId) {
+            con.leaderboards.updateOne(
+                    eq("_id", (ObjectId) leaderBoardObj), new Document("$set", rankings));
+        } else {
+            con.leaderboards.insertOne(rankings);
+            Document leaderBoard = new Document("leaderBoardId", rankings.getObjectId("_id"));
+            Document updateLeaderBoardIdQuery = new Document("$set", leaderBoard);
+            tournaments.updateOne(new Document("_id", tourid), updateLeaderBoardIdQuery);
+        }
     }
 
     /*

@@ -13,6 +13,7 @@ public class MongoConnection {
     protected MongoCollection<Document> matches;
     protected MongoCollection<Document> tournaments;
     protected MongoCollection<Document> players;
+    protected MongoCollection<Document> leaderboards;
 
 
     public MongoConnection() {
@@ -22,6 +23,7 @@ public class MongoConnection {
         tournaments = database.getCollection("tournaments");
         players = database.getCollection("players");
         games = database.getCollection("games");
+        leaderboards = database.getCollection("leaderboards");
     }
 
     public MongoCollection<Document> getTournaments() {
