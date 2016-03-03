@@ -1,20 +1,16 @@
 package org.ggp.base.player.gamer.statemachine.tictactoe;
 
 import org.ggp.base.util.gdl.grammar.GdlSentence;
+import org.ggp.base.util.gdl.grammar.GdlTerm;
 import org.ggp.base.util.statemachine.MachineState;
 import org.ggp.base.util.statemachine.Move;
 import org.ggp.base.util.statemachine.Role;
 import org.ggp.base.util.statemachine.StateMachine;
-import org.ggp.base.util.statemachine.exceptions.GoalDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.MoveDefinitionException;
-import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
 
 import java.util.List;
 
-/**
- * Obsoleted, String manipulation to check Gdl term and body
- */
-public abstract class TicTacToePlayer extends BaseGamePlayer {
+public abstract class NewTicTacToePlayer extends BaseGamePlayer {
     private StateMachine theMachine;
     private MachineState theState;
     private Role role;
@@ -31,8 +27,21 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
                 board[i][j] = 'b';
     }
 
+    /*
+     * Returns a role 'x' or 'o'
+     */
     public char getMyRole() {
         return myRole;
+    }
+
+    /*
+     * Returns true if it's a turn.
+     */
+    public boolean isMyTurn() throws MoveDefinitionException {
+        List<Move> moves = theMachine.getLegalMoves(theState, role);
+        if (moves.size() == 1)
+            return false;
+        return true;
     }
 
     private void initMyRole() {
@@ -42,14 +51,17 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
             myRole = 'o';
     }
 
-    private void updateBoard(String state) {
+    private void updateBoard(GdlSentence sentence) {
         // updates a board
-        // example: ( true ( cell 3 2 b ) )
-        int startIndex, row, col;
-        startIndex = state.lastIndexOf('l');
-        col = Character.getNumericValue(state.charAt(startIndex + 2)) - 1;
-        row = Character.getNumericValue(state.charAt(startIndex + 4)) - 1;
-        board[col][row] = state.charAt(startIndex + 6);
+        // example sentence: ( true ( cell 3 2 b ) )
+        // 'true' is name, 'cell 3 2 b' is body of sentence '( true ( cell 3 2 b ) )'
+        // 'cell' is name, '3 2 b' is body of sentence 'cell 3 2 b'
+
+        List<GdlTerm> terms = sentence.getBody().get(0).toSentence().getBody();
+        int col = Integer.parseInt(terms.get(0).toString());
+        int row = Integer.parseInt(terms.get(1).toString());
+        char symbol = terms.get(2).toString().charAt(0);
+        board[col - 1][row - 1] = symbol;
     }
 
     /*
@@ -76,37 +88,34 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
         String state;
         for (GdlSentence sentence : machineState.getContents()) {
             state = sentence.toString();
-
-            //System.out.println("state = " + state);
-            if (state.contains("cell")) {
-                updateBoard(state);
-                //System.out.println("updateBoard");
-            }
+            if (state.contains("cell")) updateBoard(sentence);
         }
     }
 
     /**
-     * Marks 'x' or 'o' on a board by given row and col.
-     * No move return if enter invalid row or col.
+     * Marks 'x' or 'o' on the grid and returns Move object required by GGP.
+     * The Move object will be translated into GDL term.
      */
-    protected Move mark(int col, int row) throws MoveDefinitionException {
+    public Move mark(int col, int row) throws MoveDefinitionException {
         List<Move> moves = theMachine.getLegalMoves(theState, role);
+
         for (Move move : moves) {
-            //move.getContents().toSentence().getName()
-            // System.out.println("move = " + move.toString());
             // format:  ( mark col row )
             // example: ( mark 1 3 )
-            if (move.toString().charAt(0) == '(' &&
-                    col == Character.getNumericValue(move.toString().charAt(7)) &&
-                    row == Character.getNumericValue(move.toString().charAt(9))) {
+            if (move.getContents().toSentence().getName().getValue().equals("mark")) {
+                int thisCol = Integer.parseInt(move.getContents().toSentence().getBody().get(0).toString());
+                int thisRow = Integer.parseInt(move.getContents().toSentence().getBody().get(1).toString());
 
-                System.out.println("move = " + move.toString());
-                return move;
+                if (col == thisCol && row == thisRow)
+                    return move;
             }
-
         }
 
+        // returns noop by default, if this is not your turn.
         return moves.get(0);
     }
 
 }
+
+
+
