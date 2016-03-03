@@ -10,6 +10,7 @@ import org.ggp.base.util.statemachine.exceptions.MoveDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
 
 import java.util.List;
+import java.util.Random;
 
 /**
  * Created by Amata on 3/2/2016 AD.

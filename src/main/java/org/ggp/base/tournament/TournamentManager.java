@@ -611,6 +611,9 @@ public class TournamentManager implements Observer {
         List<Document> matchResult = matchResult(match);
         // insert data
         insertNewMatch(match, matchResult, ranks);
+
+
+        // saveMatch(match);
     }
 
     /*
