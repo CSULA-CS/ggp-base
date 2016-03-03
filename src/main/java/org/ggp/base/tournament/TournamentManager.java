@@ -610,7 +610,7 @@ public class TournamentManager implements Observer {
         // match data
         List<Document> matchResult = matchResult(match);
         // insert data
-        insertNewMatch(tournament, match, matchResult, ranks);
+        insertNewMatch(match, matchResult, ranks);
     }
 
     /*
@@ -737,7 +737,7 @@ public class TournamentManager implements Observer {
     /*
      * Adds new match to DB
      */
-    private void insertNewMatch(String tournamentName, Match match, List<Document> matchResult, List<Document> ranks) throws Exception {
+    private void insertNewMatch(Match match, List<Document> matchResult, List<Document> ranks) throws Exception {
         // String tour_id = tournaments.find(eq("name", tournamentName)).first().getString("_id");
         Document thisMatch = new Document("tournament", tournament)
                 .append("tournament_id", tourid)

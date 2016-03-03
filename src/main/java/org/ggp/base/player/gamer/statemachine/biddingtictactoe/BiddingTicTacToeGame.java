@@ -1,9 +1,10 @@
 package org.ggp.base.player.gamer.statemachine.biddingtictactoe;
 
-
-import org.ggp.base.player.gamer.statemachine.sample.SampleGamer;
 import org.ggp.base.util.gdl.grammar.GdlSentence;
+import org.ggp.base.util.statemachine.MachineState;
 import org.ggp.base.util.statemachine.Move;
+import org.ggp.base.util.statemachine.Role;
+import org.ggp.base.util.statemachine.StateMachine;
 import org.ggp.base.util.statemachine.exceptions.GoalDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.MoveDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
@@ -11,9 +12,13 @@ import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
 import java.util.List;
 
 /**
- * Starter class for Bidding Tic Tac Toe player
+ * Created by Amata on 3/2/2016 AD.
  */
-public abstract class BiddingTicTacToeGamer extends SampleGamer {
+public abstract class BiddingTicTacToeGame extends BaseGamePlayer {
+    private StateMachine theMachine;
+    private MachineState theState;
+    private Role role;
+
     private final int NUM_ROW = 3;
     private final int NUM_COL = 3;
     private char[][] board = null;
@@ -24,7 +29,8 @@ public abstract class BiddingTicTacToeGamer extends SampleGamer {
     private char myRole;
     private char yourRole;
 
-    protected void initBoard() {
+
+    private void initBoard() {
         System.out.println("initBoard");
         board = new char[NUM_COL][NUM_ROW];
         for (int i = 0; i < NUM_COL; i++)
@@ -32,16 +38,13 @@ public abstract class BiddingTicTacToeGamer extends SampleGamer {
                 board[i][j] = 'b';
     }
 
-    protected char getMyRole() {
-        System.out.println("getMyRole = " + getRole().toString());
-        if (getRole().toString() == "x")
-            return 'x';
-        return 'o';
+    public char getMyRole() {
+        return myRole;
     }
 
-    protected void initMyRole() {
+    private void initMyRole() {
         System.out.println("initMyRole");
-        if (getRole().toString() == "x") {
+        if (role.toString() == "x") {
             myRole = 'x';
             yourRole = 'o';
         } else {
@@ -64,44 +67,6 @@ public abstract class BiddingTicTacToeGamer extends SampleGamer {
 
     public boolean hasTiebreaker() {
         return tiebreaker;
-    }
-
-    @Override
-    public void stateMachineMetaGame(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException {
-        initBoard();
-        initMyRole();
-        System.out.println("my role = " + getMyRole());
-    }
-
-    /**
-     * Updates a board so that develops can call "board[row][col]" to have a current board.
-     * Also a number of coins and tiebreaker.
-     */
-    protected void updateGameState() {
-
-        String state;
-        for (GdlSentence sentence : getCurrentState().getContents()) {
-            state = sentence.toString();
-            //System.out.println("state = " + state);
-            if (state.contains("cell")) {
-                updateBoard(state);
-                //System.out.println("updateBoard");
-            } else if (state.contains("coins")) {
-                updateCoins(state);
-                //System.out.println("updateCoins");
-            } else if (state.contains("tiebreaker")) {
-                updateTiebreaker(state);
-                // System.out.println("updateTiebreaker");
-            } else if (state.contains("bidding")) {
-                bidding = true;
-                // System.out.println("bidding");
-            } else if (state.contains("control")) {
-                bidding = false;
-                // System.out.println("control");
-                // System.out.println("state = " + state);
-
-            }
-        }
     }
 
     private void updateBoard(String state) {
@@ -142,19 +107,55 @@ public abstract class BiddingTicTacToeGamer extends SampleGamer {
      * Gets a mark by given a position on a board (row, col)
      * x, o, and b(blank)
      */
-    protected char board(int col, int row) {
+    public char board(int col, int row) {
         if (board == null)
             initBoard();
         return board[col - 1][row - 1];
     }
 
+    @Override
+    public void init(StateMachine stateMachine, Role theRole) {
+        theMachine = stateMachine;
+        role = theRole;
+        initBoard();
+        initMyRole();
+    }
+
+    @Override
+    public void updateGameState(MachineState machineState) {
+        theState = machineState;
+        String state;
+        for (GdlSentence sentence : machineState.getContents()) {
+            state = sentence.toString();
+            //System.out.println("state = " + state);
+            if (state.contains("cell")) {
+                updateBoard(state);
+                //System.out.println("updateBoard");
+            } else if (state.contains("coins")) {
+                updateCoins(state);
+                //System.out.println("updateCoins");
+            } else if (state.contains("tiebreaker")) {
+                updateTiebreaker(state);
+                // System.out.println("updateTiebreaker");
+            } else if (state.contains("bidding")) {
+                bidding = true;
+                // System.out.println("bidding");
+            } else if (state.contains("control")) {
+                bidding = false;
+                // System.out.println("control");
+                // System.out.println("state = " + state);
+
+            }
+        }
+    }
+
     protected Move bid(int coins, boolean useTiebreaker) throws MoveDefinitionException {
-        if (coins > myCoins)
-            coins = myCoins;
+        if (coins > getMyCoins())
+            coins = getMyCoins();
         else if (coins < 0)
             coins = 0;
 
-        List<Move> moves = getStateMachine().getLegalMoves(getCurrentState(), getRole());
+        List<Move> moves = theMachine.getLegalMoves(theState, role);
         for (Move move : moves) {
             //( bid 2 with_tiebreaker )
             //( bid 2 no_tiebreaker )
@@ -162,13 +163,13 @@ public abstract class BiddingTicTacToeGamer extends SampleGamer {
             String moveString = move.toString();
             int coinsOfThisMove = Character.getNumericValue(move.toString().charAt(moveString.indexOf("bid") + "bid ".length()));
             System.out.println("coinsOfThisMove = " + coinsOfThisMove);
-            if (tiebreaker && useTiebreaker && moveString.contains("with_tiebreaker") && coinsOfThisMove == coins) {
+            if (hasTiebreaker() && useTiebreaker && moveString.contains("with_tiebreaker") && coinsOfThisMove == coins) {
                 System.out.println("move = " + move.toString());
                 return move;
-            } else if (tiebreaker && !useTiebreaker && moveString.contains("no_tiebreaker") && coinsOfThisMove == coins) {
+            } else if (hasTiebreaker() && !useTiebreaker && moveString.contains("no_tiebreaker") && coinsOfThisMove == coins) {
                 System.out.println("move = " + move.toString());
                 return move;
-            } else if (!tiebreaker && moveString.contains("no_tiebreaker") && coinsOfThisMove == coins) {
+            } else if (!hasTiebreaker() && moveString.contains("no_tiebreaker") && coinsOfThisMove == coins) {
                 System.out.println("move = " + move.toString());
                 return move;
             }
@@ -183,7 +184,7 @@ public abstract class BiddingTicTacToeGamer extends SampleGamer {
      * No move return if enter invalid row or col.
      */
     protected Move mark(int row, int col) throws MoveDefinitionException {
-        List<Move> moves = getStateMachine().getLegalMoves(getCurrentState(), getRole());
+        List<Move> moves = theMachine.getLegalMoves(theState, role);
         for (Move move : moves) {
             //move.getContents().toSentence().getName()
             //System.out.println("move = " + move.toString());
@@ -199,43 +200,4 @@ public abstract class BiddingTicTacToeGamer extends SampleGamer {
         return moves.get(0);
     }
 
-    /*@Override
-    public Move stateMachineSelectMove(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException
-    {
-        StateMachine theMachine = getStateMachine();
-        long start = System.currentTimeMillis();
-        long finishBy = timeout - 1000;
-
-        List<Move> moves = theMachine.getLegalMoves(getCurrentState(), getRole());
-        updateGameState();
-
-        Move selection = makeMyMove();
-
-        long stop = System.currentTimeMillis();
-        notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
-        return selection;
-    }*/
-
-    // ** constructMyMove(), decideMyMove, selectMove
-    public Move makeMyMove() throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException {
-
-        if (isBidding()) {
-            System.out.println("---------Bidding---------");
-            System.out.println("my coins = " + myCoins);
-            System.out.println("my tiebreaker = " + tiebreaker);
-
-            // place a bidding
-            if (hasTiebreaker())
-                return bid(getMyCoins(), true);
-            return bid(getMyCoins(), false);
-        } else {
-            System.out.println("---------Marking---------");
-            // mark on a board
-            if (board(1, 3) == 'b')
-                return mark(1, 3);
-            return mark(1, 3);
-        }
-    }
-
 }
-
