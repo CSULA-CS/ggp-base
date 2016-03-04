@@ -1,4 +1,4 @@
-package org.ggp.base.player.gamer.statemachine.tictactoe;
+package tictactoe;
 
 import org.ggp.base.player.gamer.event.GamerSelectedMoveEvent;
 import org.ggp.base.player.gamer.statemachine.sample.SampleGamer;
@@ -16,7 +16,7 @@ public class TicTacToeGamer extends SampleGamer {
 
     @Override
     public void stateMachineMetaGame(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException {
-        thePlayer = new MyGamePlayer(); // Specifies the class defining logic by user
+        thePlayer = new MyTicTacToePlayer(); // Specifies the class defining logic by user
         thePlayer.init(getStateMachine(), getRole());
 
     }
@@ -28,6 +28,16 @@ public class TicTacToeGamer extends SampleGamer {
         long finishBy = timeout - 1000;
 
         List<Move> moves = theMachine.getLegalMoves(getCurrentState(), getRole());
+        if (moves.size() == 1) {
+            // if not my turn, return 'noop'.
+            thePlayer.updateGameState(getCurrentState());
+            Move selection = moves.get(0);
+            long stop = System.currentTimeMillis();
+            notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
+            return selection;
+        }
+
+        // My turn
         thePlayer.updateGameState(getCurrentState());
         Move selection = thePlayer.selectTheMove(timeout);
         long stop = System.currentTimeMillis();

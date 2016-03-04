@@ -1,53 +1,51 @@
-package org.ggp.base.player.gamer.statemachine.tictactoe;
+package tictactoe;
 
 import org.ggp.base.util.statemachine.Move;
 import org.ggp.base.util.statemachine.exceptions.GoalDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.MoveDefinitionException;
 import org.ggp.base.util.statemachine.exceptions.TransitionDefinitionException;
 
-import java.util.Random;
-
 /**
- * Created by Amata on 3/2/2016 AD.
+ * Admin writes TicTacToePlayer, users extend this TicTacToePlayer.
  */
-public class MyGamePlayer extends NewTicTacToePlayer {
+public class MyTicTacToePlayer extends TicTacToePlayer {
     
-    /*
+    /* sth
      *
      * char board(int col, int row)
      * Returns char at a position (column, row) on the grid.
      * 'b' = blank, 'x' and 'o'.
-     *
+     * --------------------------------
      * char getMyRole()
      * Returns a role 'x' or 'o'.
-     *
-     * boolean isMyTurn()
-     * Returns true, if it's a turn. Otherwise, returns false.
-     *
+     * --------------------------------
      * Move mark(int col, int row)
      * Marks 'x' or 'o' on the grid and returns Move object required by GGP.
      * The Move object will be translated into GDL term.
      *
+     * noopMove to return 'noop'
      */
 
     @Override
     Move selectTheMove(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException {
-        int numCol = 3;
-        int numRow = 3;
+        long finishBy = timeout - 1000;
 
-        if (isMyTurn()) {
-            if (board(1, 3) == 'b')
-                return mark(1, 3);
-
-            for (int col = 1; col <= numCol; col++) {
-                for (int row = 1; row <= numRow; row++) {
-                    if (board(col, row) == 'b')
-                        return mark(col, row);
+        Move move = noopMove;
+        for (int col = 1; col <= this.NUM_COL; col++) {
+            for (int row = 1; row <= this.NUM_ROW; row++) {
+                // not enough time to decide a move, return 'noop'
+                if (System.currentTimeMillis() > finishBy) {
+                    System.out.println("no time to think! pick one move.");
+                    return mark(col, row);
                 }
+
+                if (board(col, row) == 'b')
+                    return mark(col, row);
             }
-            return mark(numCol, numRow);
         }
 
-        return mark(0, 0);
+        return move;
     }
+
+    // function to try to win
 }

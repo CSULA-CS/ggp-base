@@ -1,5 +1,6 @@
-package org.ggp.base.player.gamer.statemachine.tictactoe;
+package tictactoe;
 
+import org.ggp.base.util.gdl.grammar.GdlPool;
 import org.ggp.base.util.gdl.grammar.GdlSentence;
 import org.ggp.base.util.gdl.grammar.GdlTerm;
 import org.ggp.base.util.statemachine.MachineState;
@@ -10,15 +11,17 @@ import org.ggp.base.util.statemachine.exceptions.MoveDefinitionException;
 
 import java.util.List;
 
-public abstract class NewTicTacToePlayer extends BaseGamePlayer {
+public abstract class TicTacToePlayer extends BaseGamePlayer {
     private StateMachine theMachine;
     private MachineState theState;
     private Role role;
 
-    private final int NUM_ROW = 3;
-    private final int NUM_COL = 3;
+    protected final int NUM_ROW = 3;
+    protected final int NUM_COL = 3;
     private char[][] board = null;
     private char myRole;
+    protected Move noopMove = new Move(GdlPool.getConstant("NOOP"));
+
 
     private void initBoard() {
         board = new char[NUM_COL][NUM_ROW];
@@ -30,8 +33,8 @@ public abstract class NewTicTacToePlayer extends BaseGamePlayer {
     /*
      * Returns a role 'x' or 'o'
      */
-    public char getMyRole() {
-        return myRole;
+    public String getMyRole() {
+        return role.toString();
     }
 
     /*
@@ -79,7 +82,7 @@ public abstract class NewTicTacToePlayer extends BaseGamePlayer {
         theMachine = stateMachine;
         role = theRole;
         initBoard();
-        initMyRole();
+        //initMyRole();
     }
 
     @Override
@@ -106,12 +109,13 @@ public abstract class NewTicTacToePlayer extends BaseGamePlayer {
                 int thisCol = Integer.parseInt(move.getContents().toSentence().getBody().get(0).toString());
                 int thisRow = Integer.parseInt(move.getContents().toSentence().getBody().get(1).toString());
 
-                if (col == thisCol && row == thisRow)
+                if (col == thisCol && row == thisRow) {
+                    System.out.println("col = " + col + ", row = " + row);
                     return move;
+                }
             }
         }
 
-        // returns noop by default, if this is not your turn.
         return moves.get(0);
     }
 

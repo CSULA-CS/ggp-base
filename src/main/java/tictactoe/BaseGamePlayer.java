@@ -1,4 +1,4 @@
-package org.ggp.base.player.gamer.statemachine.tictactoe;
+package tictactoe;
 
 import org.ggp.base.util.statemachine.MachineState;
 import org.ggp.base.util.statemachine.Move;
