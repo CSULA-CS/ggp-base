@@ -28,9 +28,11 @@ public class TicTacToeGamer extends SampleGamer {
         long finishBy = timeout - 1000;
 
         List<Move> moves = theMachine.getLegalMoves(getCurrentState(), getRole());
+        thePlayer.updateGameState(getCurrentState());
+
         if (moves.size() == 1) {
             // if not my turn, return 'noop'.
-            thePlayer.updateGameState(getCurrentState());
+            //thePlayer.updateGameState(getCurrentState());
             Move selection = moves.get(0);
             long stop = System.currentTimeMillis();
             notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
@@ -38,7 +40,7 @@ public class TicTacToeGamer extends SampleGamer {
         }
 
         // My turn
-        thePlayer.updateGameState(getCurrentState());
+
         Move selection = thePlayer.selectTheMove(timeout);
         long stop = System.currentTimeMillis();
         notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));

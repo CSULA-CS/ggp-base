@@ -18,8 +18,15 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
 
     protected final int NUM_ROW = 3;
     protected final int NUM_COL = 3;
+    protected final int MAX_CELLS = 3;
+    protected final int NUM_DIAGONAL = 3;
+    protected static final char BLANK = 'b';
+    protected static final char PLAYER_X = 'x';
+    protected static final char PLAYER_O = 'o';
+
     private char[][] board = null;
     private char myRole;
+    private char opponentRole;
     protected Move noopMove = new Move(GdlPool.getConstant("NOOP"));
 
 
@@ -33,8 +40,12 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
     /*
      * Returns a role 'x' or 'o'
      */
-    public String getMyRole() {
-        return role.toString();
+    public char getMyRole() {
+        return myRole;
+    }
+
+    public char getOpponentRole() {
+        return opponentRole;
     }
 
     /*
@@ -48,10 +59,14 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
     }
 
     private void initMyRole() {
-        if (role.toString() == "xplayer")
+        System.out.println(role.toString());
+        if (role.toString() == "xplayer") {
             myRole = 'x';
-        else
+            opponentRole = 'o';
+        } else {
             myRole = 'o';
+            opponentRole = 'x';
+        }
     }
 
     private void updateBoard(GdlSentence sentence) {
@@ -72,8 +87,10 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
      * 'b' = blank, 'x' and 'o'
      */
     public char board(int col, int row) {
-        if (board == null)
+        if (board == null) {
+            System.out.println("board is null");
             initBoard();
+        }
         return board[col - 1][row - 1];
     }
 
@@ -82,7 +99,7 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
         theMachine = stateMachine;
         role = theRole;
         initBoard();
-        //initMyRole();
+        initMyRole();
     }
 
     @Override
@@ -110,7 +127,7 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
                 int thisRow = Integer.parseInt(move.getContents().toSentence().getBody().get(1).toString());
 
                 if (col == thisCol && row == thisRow) {
-                    System.out.println("col = " + col + ", row = " + row);
+                    //System.out.println("col = " + col + ", row = " + row);
                     return move;
                 }
             }
@@ -120,6 +137,8 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
     }
 
 }
+
+
 
 
 
