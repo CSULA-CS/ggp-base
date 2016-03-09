@@ -502,29 +502,116 @@ public class TournamentManager implements Observer {
         Rating p2Rating = new Rating(userRankMap.get(user2).getDouble("mu"), userRankMap.get(user2).getDouble("sigma"));
         Map<IPlayer, Rating> newRatings = updateOneVsOneRating(match, p1Rating, p2Rating);
 
-        // updates ratings of current rankings in a map
-        for (Map.Entry<IPlayer, Rating> entry : newRatings.entrySet()) {
-            String username = entry.getKey().toString();
-            Rating newRating = entry.getValue();
-
-            int numMatch = userRankMap.get(username).getInteger("numMatch") + 1;
-            userRankMap.put(username, new Document("username", username)
-                .append("rating", newRating.getConservativeRating())
-                .append("mu", newRating.getMean())
-                .append("sigma", newRating.getStandardDeviation())
-                .append("numMatch", numMatch));
-
-        }
-
+        updateWinLoseDraw(match, newRatings, userRankMap);
         // gets a list of rankings from a map, then add field "rank" to each of them
         List<Document> ranks = new ArrayList<Document>(userRankMap.values());
         createRankings(ranks);
+
         // match data
         List<Document> matchResult = matchResult(match);
         // insert data
         insertNewMatch(match, matchResult, ranks);
 
         //saveMatch(match);
+    }
+
+    /*
+     * Updates numMatch, win, lose, draw for each user playing this match
+     */
+    private void updateWinLoseDraw(Match match, Map<IPlayer, Rating> newRatings, Map<String, Document> userRankMap) {
+
+        List<Rating> ratings = new ArrayList<>();
+        Iterator newRatingIter = newRatings.values().iterator();
+        while (newRatingIter.hasNext()) {
+            ratings.add((Rating) newRatingIter.next());
+        }
+        Rating rating1 = ratings.get(0);
+        Rating rating2 = ratings.get(1);
+
+        String user1 = match.getPlayerNamesFromHost().get(0);
+        String user2 = match.getPlayerNamesFromHost().get(1);
+
+        double user1ConservativeRating = rating1.getConservativeRating();
+        double user1Mean = rating1.getMean();
+        double user1StandardDeviation = rating1.getStandardDeviation();
+        int user1NumMatch = userRankMap.get(user1).getInteger("numMatch");
+        int user1Win = userRankMap.get(user1).getInteger("win");
+        int user1Lose = userRankMap.get(user1).getInteger("lose");
+        int user1Draw = userRankMap.get(user1).getInteger("draw");
+
+        double user2ConservativeRating = rating2.getConservativeRating();
+        double user2Mean = rating2.getMean();
+        double user2StandardDeviation = rating2.getStandardDeviation();
+        int user2NumMatch = userRankMap.get(user2).getInteger("numMatch");
+        int user2Win = userRankMap.get(user2).getInteger("win");
+        int user2Lose = userRankMap.get(user2).getInteger("lose");
+        int user2Draw = userRankMap.get(user2).getInteger("draw");
+
+        if (match.getGoalValues().get(0) > match.getGoalValues().get(1)) {
+            // first user won
+            userRankMap.put(user1, new Document("username", user1)
+                    .append("rating", user1ConservativeRating)
+                    .append("mu", user1Mean)
+                    .append("sigma", user1StandardDeviation)
+                    .append("numMatch", user1NumMatch + 1)
+                    .append("win", user1Win + 1)
+                    .append("lose", user1Lose)
+                    .append("draw", user1Draw)
+            );
+
+            userRankMap.put(user2, new Document("username", user2)
+                    .append("rating", user2ConservativeRating)
+                    .append("mu", user2Mean)
+                    .append("sigma", user2StandardDeviation)
+                    .append("numMatch", user2NumMatch + 1)
+                    .append("win", user2Win)
+                    .append("lose", user2Lose + 1)
+                    .append("draw", user2Draw)
+            );
+
+        } else if (match.getGoalValues().get(0) < match.getGoalValues().get(1)) {
+            // first user lose
+            userRankMap.put(user1, new Document("username", user1)
+                    .append("rating", user1ConservativeRating)
+                    .append("mu", user1Mean)
+                    .append("sigma", user1StandardDeviation)
+                    .append("numMatch", user1NumMatch + 1)
+                    .append("win", user1Win)
+                    .append("lose", user1Lose + 1)
+                    .append("draw", user1Draw)
+            );
+
+            userRankMap.put(user2, new Document("username", user2)
+                    .append("rating", user2ConservativeRating)
+                    .append("mu", user2Mean)
+                    .append("sigma", user2StandardDeviation)
+                    .append("numMatch", user2NumMatch + 1)
+                    .append("win", user2Win + 1)
+                    .append("lose", user2Lose)
+                    .append("draw", user2Draw)
+            );
+        } else {
+            // draw
+            userRankMap.put(user1, new Document("username", user1)
+                    .append("rating", user1ConservativeRating)
+                    .append("mu", user1Mean)
+                    .append("sigma", user1StandardDeviation)
+                    .append("numMatch", user1NumMatch + 1)
+                    .append("win", user1Win)
+                    .append("lose", user1Lose)
+                    .append("draw", user1Draw + 1)
+            );
+
+            userRankMap.put(user2, new Document("username", user2)
+                    .append("rating", user2ConservativeRating)
+                    .append("mu", user2Mean)
+                    .append("sigma", user2StandardDeviation)
+                    .append("numMatch", user2NumMatch + 1)
+                    .append("win", user2Win)
+                    .append("lose", user2Lose)
+                    .append("draw", user2Draw + 1)
+            );
+        }
     }
 
     /*
@@ -614,7 +701,10 @@ public class TournamentManager implements Observer {
                     .append("rating", gameInfo.getDefaultRating().getConservativeRating())
                     .append("mu", gameInfo.getDefaultRating().getMean())
                     .append("sigma", gameInfo.getDefaultRating().getStandardDeviation())
-                    .append("numMatch", 0);
+                    .append("numMatch", 0)
+                    .append("win", 0)
+                    .append("lose", 0)
+                    .append("draw", 0);
 
             defaultUsers.add(userDoc);
         }
@@ -670,8 +760,7 @@ public class TournamentManager implements Observer {
 
         // if there are some matches already, updates the leader board.
         if (leaderBoardObj instanceof ObjectId) {
-            con.leaderboards.updateOne(
-                    eq("_id", (ObjectId) leaderBoardObj), new Document("$set", rankings));
+            con.leaderboards.updateOne(eq("_id", (ObjectId) leaderBoardObj), new Document("$set", rankings));
         } else {
             con.leaderboards.insertOne(rankings);
             Document leaderBoard = new Document("leaderBoardId", rankings.getObjectId("_id"));
