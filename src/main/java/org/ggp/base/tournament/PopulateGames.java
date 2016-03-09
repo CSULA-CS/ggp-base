@@ -7,6 +7,7 @@ import com.mongodb.client.MongoDatabase;
 import external.JSON.JSONException;
 import external.JSON.JSONObject;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.ggp.base.util.game.Game;
 import org.ggp.base.util.game.GameRepository;
 import org.ggp.base.util.loader.RemoteResourceLoader;
@@ -48,6 +49,7 @@ public class PopulateGames implements Runnable {
                     if (theGame.getName() == null) {
                         continue;
                     }
+
 
                     if (games.count(eq("name", theGame.getName())) == 0) {
                         String theGameURL = theRepository.getGame(theKey).getRepositoryURL();

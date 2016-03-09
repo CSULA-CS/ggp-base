@@ -1,6 +1,5 @@
 package tictactoe;
 
-import org.ggp.base.util.gdl.grammar.GdlPool;
 import org.ggp.base.util.gdl.grammar.GdlSentence;
 import org.ggp.base.util.gdl.grammar.GdlTerm;
 import org.ggp.base.util.statemachine.MachineState;
@@ -21,14 +20,12 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
     protected final int MAX_CELLS = 3;
     protected final int NUM_DIAGONAL = 3;
     protected static final char BLANK = 'b';
-    protected static final char PLAYER_X = 'x';
-    protected static final char PLAYER_O = 'o';
+    protected static final char X = 'x';
+    protected static final char O = 'o';
 
     private char[][] board = null;
-    private char myRole;
-    private char opponentRole;
-    protected Move noopMove = new Move(GdlPool.getConstant("NOOP"));
-
+    private char mySymbol;
+    private char opponentSymbol;
 
     private void initBoard() {
         board = new char[NUM_COL][NUM_ROW];
@@ -40,32 +37,22 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
     /*
      * Returns a role 'x' or 'o'
      */
-    public char getMyRole() {
-        return myRole;
+    public char getMySymbol() {
+        return mySymbol;
     }
 
-    public char getOpponentRole() {
-        return opponentRole;
-    }
-
-    /*
-     * Returns true if it's a turn.
-     */
-    public boolean isMyTurn() throws MoveDefinitionException {
-        List<Move> moves = theMachine.getLegalMoves(theState, role);
-        if (moves.size() == 1)
-            return false;
-        return true;
+    public char getOpponentSymbol() {
+        return opponentSymbol;
     }
 
     private void initMyRole() {
         System.out.println(role.toString());
         if (role.toString() == "xplayer") {
-            myRole = 'x';
-            opponentRole = 'o';
+            mySymbol = 'x';
+            opponentSymbol = 'o';
         } else {
-            myRole = 'o';
-            opponentRole = 'x';
+            mySymbol = 'o';
+            opponentSymbol = 'x';
         }
     }
 
@@ -114,7 +101,6 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
 
     /**
      * Marks 'x' or 'o' on the grid and returns Move object required by GGP.
-     * The Move object will be translated into GDL term.
      */
     public Move mark(int col, int row) throws MoveDefinitionException {
         List<Move> moves = theMachine.getLegalMoves(theState, role);
