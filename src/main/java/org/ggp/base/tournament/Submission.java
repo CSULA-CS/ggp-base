@@ -1,5 +1,7 @@
 package org.ggp.base.tournament;
 
+import com.mongodb.client.result.UpdateResult;
+import jskills.GameInfo;
 import net.lingala.zip4j.exception.ZipException;
 import net.lingala.zip4j.core.ZipFile;
 
@@ -16,6 +18,8 @@ import javax.tools.ToolProvider;
 import javax.tools.StandardJavaFileManager;
 
 import org.apache.commons.io.FileUtils;
+import org.bson.types.ObjectId;
+
 import java.io.File;
 import java.util.Collection;
 import java.io.IOException;
@@ -34,12 +38,16 @@ class Submission implements Runnable {
     private MongoDatabase database;
     private MongoCollection<Document> players;
     private MongoCollection<Document> tournaments;
+    private MongoCollection<Document> leaderboards;
+    private MongoCollection<Document> matches;
 
     public Submission() {
         mongoClient = new MongoClient("localhost", 3001);
         database = mongoClient.getDatabase("meteor");
         players = database.getCollection("players");
         tournaments = database.getCollection("tournaments");
+        leaderboards = database.getCollection("tournaments");
+        matches = database.getCollection("matches");
     }
 
     public void unzip(String fileName) throws ZipException, IOException {
@@ -111,6 +119,22 @@ class Submission implements Runnable {
         }
     }
 
+    private void resetRating(String tourid, String username) {
+        Document latestMatch = matches.find(eq("tournament_id", tourid)).sort(descending("_id")).first();
+        ObjectId matchid = latestMatch.getObjectId("_id");
+
+        Document elemMatchCondition = new Document("$elemMatch", new Document("username", username));
+        Document ranksCondition = new Document("ranks", elemMatchCondition);
+
+        GameInfo gameInfo = GameInfo.getDefaultGameInfo();
+        Document setCondition = new Document("$set",
+                new Document("ranks.$.rating", gameInfo.getDefaultRating().getConservativeRating())
+                        .append("ranks.$.mu", gameInfo.getDefaultRating().getMean())
+                        .append("ranks.$.sigma", gameInfo.getDefaultRating().getStandardDeviation())
+        );
+        matches.updateOne(and(eq("_id", matchid), ranksCondition), setCondition);
+    }
+
     @Override
     public void run() {
 
@@ -120,11 +144,16 @@ class Submission implements Runnable {
                 try {
                     unzip(pathToZip);
                     String pathToClasses = compilePlayer(pathToZip);
-                    if (pathToClasses == null)
+                    if (pathToClasses == null) // compiles fail
                         players.updateOne(eq("pathToZip", pathToZip), new Document("$set", new Document("status", "fail")));
-                    else
-                        players.updateOne(eq("pathToZip", pathToZip),
+                    else {
+                        // compiles successfully and resets user's rating.
+                        UpdateResult result =
+                                players.updateOne(eq("pathToZip", pathToZip),
                                 new Document("$set", new Document("pathToClasses", pathToClasses).append("status", "compiled")));
+                        Document latestMatch = matches.find().sort(descending("_id")).first();
+                        resetRating(latestMatch.getString("tournament_id"), thePlayer.getString("username"));
+                    }
                 }
                 catch(Exception e) {
                     e.printStackTrace();
@@ -132,9 +161,9 @@ class Submission implements Runnable {
                 }
             }
 
-            // Sleeps for 5 seconds
+            // Sleeps for 3 seconds
             try {
-                Thread.currentThread().sleep(5 * 1000);
+                Thread.currentThread().sleep(3 * 1000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }

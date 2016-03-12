@@ -17,8 +17,6 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
 
     protected final int NUM_ROW = 3;
     protected final int NUM_COL = 3;
-    protected final int MAX_CELLS = 3;
-    protected final int NUM_DIAGONAL = 3;
     protected static final char BLANK = 'b';
     protected static final char X = 'x';
     protected static final char O = 'o';
