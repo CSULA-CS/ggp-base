@@ -196,6 +196,11 @@ task gameServerRunner(type: JavaExec) {
     }
 }
 
+task contest(type: JavaExec) {
+    main = 'org.ggp.base.tournament.Contest'
+    classpath = sourceSets.main.runtimeClasspath
+}
+
 // This was used to generate the Gradle wrapper.
 task wrapper(type: Wrapper) {
     gradleVersion = '2.1'
