@@ -1,22 +1,146 @@
-Document
+Database Schema
+
+- Games
+    {
+        "_id" : ObjectId("564a452b3a04581b1888c6c9"),
+        "name" : "Advertising Game",
+        "key" : "ad_game_2x2",
+        "description" : null,
+        "xsl" : null,
+        "numRoles" : "2"
+    }
 
 - Matches
-    "tournament"
-    "tournament_id"
-    "match_id"
-    "result" : [
-        {
-            "username"
-            "score"
-        }
-    ],
-    "ranks" : [
-        {
-            "username"
-            "rating"
-            "mu"
-            "sigma"
-            "numMatch"
-        }
-    ],
-    "createdAt" : ISODate("2015-09-28T05:47:00.977Z")
+    {
+        "_id" : ObjectId("57046136166d8c14a8bcfbdb"),
+        "tournament" : "newtictactoe",
+        "tournament_id" : "oBW3JzhzTpu9YhJ5c",
+        "match_id" : "newtictactoe.ticTacToe.1459904822101",
+        "result" : [
+            {
+                "username" : "tictactoe",
+                "score" : 100,
+                "role" : "xplayer"
+            },
+            {
+                "username" : "random",
+                "score" : 0,
+                "role" : "oplayer"
+            }
+        ],
+        "ranks" : [
+            {
+                "username" : "searchlite",
+                "rating" : 24.0662310010774760,
+                "mu" : 27.8527078006737874,
+                "sigma" : 1.2621589331987708,
+                "numMatch" : 269,
+                "win" : 216,
+                "lose" : 28,
+                "draw" : 25,
+                "rank" : 1
+            },
+            {
+                "username" : "tictactoe",
+                "rating" : 20.5666271393300093,
+                "mu" : 24.5170929695718272,
+                "sigma" : 1.3168219434139388,
+                "numMatch" : 269,
+                "win" : 117,
+                "lose" : 147,
+                "draw" : 5,
+                "rank" : 2
+            },
+            {
+                "username" : "random",
+                "rating" : 19.7052607543815554,
+                "mu" : 23.9257938473773457,
+                "sigma" : 1.4068443643319295,
+                "numMatch" : 272,
+                "win" : 44,
+                "lose" : 202,
+                "draw" : 26,
+                "rank" : 3
+            }
+        ],
+        "replay" : ["<?xml version>", "<?xml version>", "<?xml version>"],
+        createdAt" : ISODate("2016-04-06T01:07:02.912Z")
+    }
+
+- LeaderBoard
+    {
+        "_id" : ObjectId("56e318e792e3d7dcd31948a2"),
+        "ranks" : [
+            {
+                "username" : "searchlite",
+                "rating" : 24.0662310010774760,
+                "mu" : 27.8527078006737874,
+                "sigma" : 1.2621589331987708,
+                "numMatch" : 269,
+                "win" : 216,
+                "lose" : 28,
+                "draw" : 25,
+                "rank" : 1
+            },
+            {
+                "username" : "tictactoe",
+                "rating" : 20.5666271393300093,
+                "mu" : 24.5170929695718272,
+                "sigma" : 1.3168219434139388,
+                "numMatch" : 269,
+                "win" : 117,
+                "lose" : 147,
+                "draw" : 5,
+                "rank" : 2
+            },
+            {
+                "username" : "random",
+                "rating" : 19.7052607543815554,
+                "mu" : 23.9257938473773457,
+                "sigma" : 1.4068443643319295,
+                "numMatch" : 272,
+                "win" : 44,
+                "lose" : 202,
+                "draw" : 26,
+                "rank" : 3
+            }
+        ]
+    }
+
+- Players
+    {
+        "_id" : "BZAEjdLAYLRtpWWTS",
+        "username" : "random",
+        "tournament_id" : "W6mBXNK5K3ppw8tsM",
+        "tournament" : "ttt-18",
+        "pathToZip" : "myRandomPlayer-Fri Mar 11 2016 17:42:51 GMT-0800 (PST).zip",
+        "pathToClasses" : "/Users/Amata/.ggp-server/compiled/myRandomPlayer-Fri Mar 11 2016 17:42:51 GMT-0800 (PST)",
+        "status" : "compiled",
+        "createdAt" : ISODate("2016-03-12T01:42:51.920Z")
+    }
+
+- Tournaments
+    {
+        "_id" : "oBW3JzhzTpu9YhJ5c",
+        "name" : "newtictactoe",
+        "game" : "Tic-Tac-Toe",
+        "gameid" : "564a452b3a04581b1888c76d",
+        "salt" : "NmCeMyzSdW7T4CXKc",
+        "hash" : "081e75dc2c22a73700071133b70cba3a9cbb51529f26582e0b39f841ec5e637a",
+        "status" : "stop",
+        "users" : [
+            {
+                "username" : "tictactoe"
+            },
+            {
+                "username" : "random"
+            },
+            {
+                "username" : "searchlite"
+            }
+        ],
+        "createdAt" : ISODate("2016-03-11T19:04:51.741Z"),
+        "lastMatchId" : "nomatch",
+        "leaderBoardId" : ObjectId("56e318e792e3d7dcd31948a2"),
+        "archived" : "no"
+    }
