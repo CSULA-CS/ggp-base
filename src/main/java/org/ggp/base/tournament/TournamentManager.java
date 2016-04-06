@@ -337,21 +337,7 @@ public class TournamentManager implements Observer {
         }
 
     }
-
-    /*
-     * Update rankings for each match in a queue of matches
-     */
-    public void updateSchdulingQueue() throws Exception {
-        while (!schedulingQueue.isEmpty()) {
-            System.out.println(">> updateSchdulingQueue");
-            Match match = schedulingQueue.remove(0);
-            updateRankings(match);
-            synchronized (busyUsers) {
-                busyUsers.removeAll(match.getPlayerNamesFromHost());
-            }
-        }
-    }
-
+    
     /*
      * TrueSkill setup for two-player game
      */

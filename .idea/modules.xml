@@ -2,7 +2,9 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/ggp-base.iml" filepath="$PROJECT_DIR$/ggp-base.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/ggp-base.iml" filepath="$PROJECT_DIR$/.idea/modules/ggp-base.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/ggp-base_main.iml" filepath="$PROJECT_DIR$/.idea/modules/ggp-base_main.iml" group="ggp-base" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/ggp-base_test.iml" filepath="$PROJECT_DIR$/.idea/modules/ggp-base_test.iml" group="ggp-base" />
     </modules>
   </component>
 </project>
