@@ -11,6 +11,9 @@ import java.lang.ref.WeakReference;
 import java.util.Map;
 import java.util.HashMap;
 
+/*
+ * Main class to run AI contest.
+ */
 public class Contest {
 
     public static void main(String[] args) throws InterruptedException {

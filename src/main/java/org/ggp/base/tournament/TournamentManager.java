@@ -37,11 +37,15 @@ import static com.mongodb.client.model.Filters.*;
 import static com.mongodb.client.model.Sorts.descending;
 import static java.util.Arrays.asList;
 
+/*
+ * Currently supports only two-player game.
+ */
 public class TournamentManager implements Observer {
     private final int numPlayers;
     // map matchid with a list of players for that match
     private final Map<String, List<GamePlayer>> playerMap;
-    private final List<Match> schedulingQueue; // schedulingQueue is a queue of finished matches but not inserted to DB yet.
+    // schedulingQueue is a queue of finished matches but not inserted to DB yet.
+    private final List<Match> schedulingQueue;
     private final Set<String> busyUsers;
 
     // game info
@@ -57,6 +61,8 @@ public class TournamentManager implements Observer {
     private MongoConnection con;
     private String tourid;
     private String tournament;
+
+    // Fixes clock for now, this can be set from UI later.
     private int startClock = 3;
     private int playClock = 14;
 
@@ -264,7 +270,8 @@ public class TournamentManager implements Observer {
                                 eq("tournament_id", tourid),
                                 eq("status", "compiled"),
                                 nin("username", currentUsers)
-                        )).into(new ArrayList());
+                        )
+                ).into(new ArrayList());
 
         if (newUsers.size() > 0) {
             List<String> defaultUsers = new ArrayList();
@@ -549,69 +556,37 @@ public class TournamentManager implements Observer {
 
         if (match.getGoalValues().get(0) > match.getGoalValues().get(1)) {
             // first user won
-            userRankMap.put(user1, new Document("username", user1)
-                    .append("rating", user1ConservativeRating)
-                    .append("mu", user1Mean)
-                    .append("sigma", user1StandardDeviation)
-                    .append("numMatch", user1NumMatch + 1)
-                    .append("win", user1Win + 1)
-                    .append("lose", user1Lose)
-                    .append("draw", user1Draw)
-            );
-
-            userRankMap.put(user2, new Document("username", user2)
-                    .append("rating", user2ConservativeRating)
-                    .append("mu", user2Mean)
-                    .append("sigma", user2StandardDeviation)
-                    .append("numMatch", user2NumMatch + 1)
-                    .append("win", user2Win)
-                    .append("lose", user2Lose + 1)
-                    .append("draw", user2Draw)
-            );
-
+            user1Win++;
+            user2Lose++;
         } else if (match.getGoalValues().get(0) < match.getGoalValues().get(1)) {
             // first user lose
-            userRankMap.put(user1, new Document("username", user1)
-                    .append("rating", user1ConservativeRating)
-                    .append("mu", user1Mean)
-                    .append("sigma", user1StandardDeviation)
-                    .append("numMatch", user1NumMatch + 1)
-                    .append("win", user1Win)
-                    .append("lose", user1Lose + 1)
-                    .append("draw", user1Draw)
-            );
-
-            userRankMap.put(user2, new Document("username", user2)
-                    .append("rating", user2ConservativeRating)
-                    .append("mu", user2Mean)
-                    .append("sigma", user2StandardDeviation)
-                    .append("numMatch", user2NumMatch + 1)
-                    .append("win", user2Win + 1)
-                    .append("lose", user2Lose)
-                    .append("draw", user2Draw)
-            );
+            user1Win++;
+            user2Lose++;
         } else {
             // draw
-            userRankMap.put(user1, new Document("username", user1)
-                    .append("rating", user1ConservativeRating)
-                    .append("mu", user1Mean)
-                    .append("sigma", user1StandardDeviation)
-                    .append("numMatch", user1NumMatch + 1)
-                    .append("win", user1Win)
-                    .append("lose", user1Lose)
-                    .append("draw", user1Draw + 1)
-            );
-
-            userRankMap.put(user2, new Document("username", user2)
-                    .append("rating", user2ConservativeRating)
-                    .append("mu", user2Mean)
-                    .append("sigma", user2StandardDeviation)
-                    .append("numMatch", user2NumMatch + 1)
-                    .append("win", user2Win)
-                    .append("lose", user2Lose)
-                    .append("draw", user2Draw + 1)
-            );
+            user1Draw++;
+            user2Draw++;
         }
+
+        userRankMap.put(user1, new Document("username", user1)
+                .append("rating", user1ConservativeRating)
+                .append("mu", user1Mean)
+                .append("sigma", user1StandardDeviation)
+                .append("numMatch", ++user1NumMatch)
+                .append("win", user1Win)
+                .append("lose", user1Lose)
+                .append("draw", user1Draw)
+        );
+
+        userRankMap.put(user2, new Document("username", user2)
+                .append("rating", user2ConservativeRating)
+                .append("mu", user2Mean)
+                .append("sigma", user2StandardDeviation)
+                .append("numMatch", ++user2NumMatch)
+                .append("win", user2Win)
+                .append("lose", user2Lose)
+                .append("draw", user2Draw)
+        );
     }
 
     /*
