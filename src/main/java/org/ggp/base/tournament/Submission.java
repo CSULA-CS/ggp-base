@@ -152,7 +152,8 @@ class Submission implements Runnable {
                                 players.updateOne(eq("pathToZip", pathToZip),
                                 new Document("$set", new Document("pathToClasses", pathToClasses).append("status", "compiled")));
                         Document latestMatch = matches.find().sort(descending("_id")).first();
-                        resetRating(latestMatch.getString("tournament_id"), thePlayer.getString("username"));
+                        if (latestMatch != null)
+                            resetRating(latestMatch.getString("tournament_id"), thePlayer.getString("username"));
                     }
                 }
                 catch(Exception e) {
