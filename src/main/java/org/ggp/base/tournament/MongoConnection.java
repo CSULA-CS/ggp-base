@@ -20,7 +20,7 @@ public class MongoConnection {
 
     public MongoConnection() {
         mongoClient = new MongoClient("localhost", PORT);
-        MongoDatabase database = mongoClient.getDatabase("meteor");
+        database = mongoClient.getDatabase("meteor");
         matches = database.getCollection("matches");
         tournaments = database.getCollection("tournaments");
         players = database.getCollection("players");

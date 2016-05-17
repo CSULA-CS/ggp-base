@@ -30,7 +30,6 @@ public class Contest {
 
         // Runs tournaments
         MongoConnection con = new MongoConnection();
-        MongoCollection<Document> players = con.players;
         MongoCollection<Document> tournaments = con.tournaments;
 
         Map<String, TournamentManager> tournamentMap = new HashMap<String, TournamentManager>();

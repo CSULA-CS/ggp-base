@@ -20,14 +20,12 @@ import java.util.List;
 import static com.mongodb.client.model.Filters.eq;
 
 public class PopulateGames implements Runnable {
-    MongoClient mongoClient;
-    MongoDatabase database;
-    MongoCollection games;
+    private MongoConnection con;
+    private MongoCollection games;
 
     public PopulateGames() {
-        mongoClient = new MongoClient("localhost", 3001);
-        database = mongoClient.getDatabase("meteor");
-        games = database.getCollection("games");
+        con = new MongoConnection();
+        games = con.games;
     }
 
     /*

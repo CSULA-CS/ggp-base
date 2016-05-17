@@ -31,23 +31,31 @@ import java.io.IOException;
 *   Note: Some printlns to be removed
 */
 class Submission implements Runnable {
+
     private static final String home = System.getProperty("user.home");
     private static final String uploadDir = home + "/.ggp-server/uploads/";
     private static final String compileDir = home + "/.ggp-server/compiled/";
     private MongoClient mongoClient;
     private MongoDatabase database;
+    private MongoConnection con;
     private MongoCollection<Document> players;
     private MongoCollection<Document> tournaments;
     private MongoCollection<Document> leaderboards;
     private MongoCollection<Document> matches;
 
     public Submission() {
-        mongoClient = new MongoClient("localhost", 3001);
+        /*mongoClient = new MongoClient("localhost", PORT);
         database = mongoClient.getDatabase("meteor");
         players = database.getCollection("players");
         tournaments = database.getCollection("tournaments");
         leaderboards = database.getCollection("tournaments");
-        matches = database.getCollection("matches");
+        matches = database.getCollection("matches");*/
+
+        con = new MongoConnection();
+        matches = con.matches;
+        tournaments = con.tournaments;
+        players = con.players;
+
     }
 
     public void unzip(String fileName) throws ZipException, IOException {
