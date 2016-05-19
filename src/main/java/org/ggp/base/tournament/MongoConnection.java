@@ -7,8 +7,8 @@ import org.bson.Document;
 
 
 public class MongoConnection {
-    // 3000 for dev, 27017 for production
-    private final int PORT = 27017;
+    // 3001 for dev, 27017 for production
+    private final int PORT = 3001;
     private MongoDatabase database;
     private MongoClient mongoClient;
     protected MongoCollection<Document> games;

@@ -23,8 +23,8 @@ public class PopulateGames implements Runnable {
     private MongoConnection con;
     private MongoCollection games;
 
-    public PopulateGames() {
-        con = new MongoConnection();
+    public PopulateGames(MongoConnection mongoConnect) {
+        con = mongoConnect;
         games = con.games;
     }
 
@@ -88,7 +88,7 @@ public class PopulateGames implements Runnable {
         while (true) {
             updateGameList();
             try {
-                Thread.sleep(5 * 1000);
+                Thread.sleep(15 * 1000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }

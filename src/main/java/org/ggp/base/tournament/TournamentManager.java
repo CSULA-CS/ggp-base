@@ -35,6 +35,7 @@ import java.util.*;
 
 import static com.mongodb.client.model.Filters.*;
 import static com.mongodb.client.model.Sorts.descending;
+
 import static java.util.Arrays.asList;
 
 /*
@@ -61,6 +62,7 @@ public class TournamentManager implements Observer {
     private MongoConnection con;
     private String tourid;
     private String tournament;
+    private GameInfo gameInfo;
 
     // Fixes clock for now, this can be set from UI later.
     private int startClock = 3;
@@ -88,6 +90,7 @@ public class TournamentManager implements Observer {
         roles = Role.computeRoles(game.getRules());
         numPlayers = roles.size();
 
+        gameInfo = GameInfo.getDefaultGameInfo();
         startSchedulingThread();
     }
 
@@ -106,6 +109,7 @@ public class TournamentManager implements Observer {
         schedulingQueue = Collections.synchronizedList(new ArrayList<Match>());
 
         // Computes number of roles/players for this game.
+        gameInfo = GameInfo.getDefaultGameInfo();
         gameid = tournaments.find(eq("_id", tourid)).first().getString("gameid");
         gameKey = games.find(eq("_id", new ObjectId(gameid))).first().getString("key");
         game = GameRepository.getDefaultRepository().getGame(gameKey);
@@ -259,30 +263,14 @@ public class TournamentManager implements Observer {
         // latest match
         System.out.println(">> getCurrentRankings");
         List<Document> rankings = (List) latestMatch().get("ranks");
-        List<String> currentUsers = new ArrayList();
-        for (Document rank: rankings)
-            currentUsers.add(rank.getString("username"));
 
-        // users joined after the latest match and their players are successfully compiled.
-        List<Document> newUsers =
-                players.find(
-                        and(
-                                eq("tournament_id", tourid),
-                                eq("status", "compiled"),
-                                nin("username", currentUsers)
-                        )
-                ).into(new ArrayList());
 
-        if (newUsers.size() > 0) {
-            List<String> defaultUsers = new ArrayList();
-            for (Document user: newUsers)
-                defaultUsers.add(user.getString("username"));
-            List<Document> newUsersWithDefaultRatings = defaultRatingUsers(defaultUsers);
-            rankings.addAll(newUsersWithDefaultRatings);
-        }
-
+        // a user joined after the latest match and their players are successfully compiled.
+        Document newUser = userHasNotPlayed(rankings);
+        if (newUser != null) rankings.add(createDefaultRatingUser(newUser.getString("username")));
         return rankings;
     }
+
 
     /*
      * Shuts down all players
@@ -386,21 +374,35 @@ public class TournamentManager implements Observer {
             return;
         }
 
-        double lower_bound_quality = -100.00;  // normally between 0.00 - 1.00, we use -100.00 to find best opponent.
+        // normally between 0.00 - 1.00, we use -100.00 to find best opponent.
+        double lower_bound_quality = -100.00;
+        //double lower_bound_quality = -1.00;
         sortByNumberOfMatch(ranks);
 
         for (Document p1: ranks) {
             if (bestMatchByCondition(ranks, p1, lower_bound_quality))
                 return;
         }
+    }
 
-        System.out.println("rankings stabilised !");
-        Document freshPlayer = findFreshPlayer();
-        if (freshPlayer != null) {
-            lower_bound_quality = -100.00;
-            bestMatchByCondition(ranks, freshPlayer, lower_bound_quality);
-        }
-        System.out.println("no fresh player");
+    private Document userHasNotPlayed(List<Document> rankings) {
+        List<String> currentUsers = new ArrayList();
+        for (Document rank : rankings)
+            currentUsers.add(rank.getString("username"));
+
+        long start = System.currentTimeMillis();
+        Document userNeverPlay =
+                players.find(
+                        and(
+                                eq("tournament_id", tourid),
+                                eq("status", "compiled"),
+                                nin("username", currentUsers)
+                        )
+                ).first();
+        long stop = System.currentTimeMillis();
+        long time = stop - start;
+        if (userNeverPlay != null) return createDefaultRatingUser(userNeverPlay.getString("username"));
+        return null;
     }
 
     /*
@@ -579,7 +581,7 @@ public class TournamentManager implements Observer {
      * Returns a map of players and their ratings after a match finished
      */
     private Map<IPlayer, Rating> updateOneVsOneRating(Match match, Rating p1Rating, Rating p2Rating) {
-        GameInfo gameInfo = GameInfo.getDefaultGameInfo();
+        //GameInfo gameInfo = GameInfo.getDefaultGameInfo();
 
         Player<String> player1 = new Player<String>(match.getPlayerNamesFromHost().get(0));
         Player<String> player2 = new Player<String>(match.getPlayerNamesFromHost().get(1));
@@ -607,7 +609,7 @@ public class TournamentManager implements Observer {
                         eq("status", "compiled"),
                         eq("username", username))).sort(descending("createdAt")).first();
 
-        String pathToClasses = aPlayer.get("pathToClasses").toString();
+        String pathToClasses = aPlayer.getString("pathToClasses");
         URL url = new File(pathToClasses).toURL();
         URL[] urls = new URL[]{url};
         ClassLoader cl = new URLClassLoader(urls);
@@ -655,21 +657,24 @@ public class TournamentManager implements Observer {
      * Builds up a list of documents carrying username with default scores of Trueskill
      */
     private List<Document> defaultRatingUsers(List<String> users) {
-        GameInfo gameInfo = GameInfo.getDefaultGameInfo();
+
         List<Document> defaultUsers = new ArrayList();
         for (String username : users) {
-            Document userDoc = new Document("username", username)
-                    .append("rating", gameInfo.getDefaultRating().getConservativeRating())
-                    .append("mu", gameInfo.getDefaultRating().getMean())
-                    .append("sigma", gameInfo.getDefaultRating().getStandardDeviation())
-                    .append("numMatch", 0)
-                    .append("win", 0)
-                    .append("lose", 0)
-                    .append("draw", 0);
-
-            defaultUsers.add(userDoc);
+            Document user = createDefaultRatingUser(username);
+            defaultUsers.add(user);
         }
         return defaultUsers;
+    }
+
+    private Document createDefaultRatingUser(String username) {
+        return new Document("username", username)
+                .append("rating", gameInfo.getDefaultRating().getConservativeRating())
+                .append("mu", gameInfo.getDefaultRating().getMean())
+                .append("sigma", gameInfo.getDefaultRating().getStandardDeviation())
+                .append("numMatch", 0)
+                .append("win", 0)
+                .append("lose", 0)
+                .append("draw", 0);
     }
 
     /*
@@ -716,8 +721,7 @@ public class TournamentManager implements Observer {
 
         Document rankings = new Document("ranks", ranks);
         // Adds new rankings to leaderboards collection
-        Object leaderBoardObj =
-                tournaments.find(new Document("_id", tourid)).first().get("leaderBoardId");
+        Object leaderBoardObj = tournaments.find(new Document("_id", tourid)).first().get("leaderBoardId");
 
         // if there are some matches already, updates the leader board.
         if (leaderBoardObj instanceof ObjectId) {
@@ -825,6 +829,7 @@ public class TournamentManager implements Observer {
         synchronized (playerMap) {
             playerMap.put(matchId, gamePlayers);
         }
+        System.out.println(">> playGame done!!");
     }
 
     public void startSchedulingThread() {

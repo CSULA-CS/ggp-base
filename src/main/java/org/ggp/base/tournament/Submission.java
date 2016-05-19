@@ -12,6 +12,7 @@ import static com.mongodb.client.model.Sorts.*;
 import static com.mongodb.client.model.Filters.*;
 import org.bson.Document;
 
+import javax.print.Doc;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.ToolProvider;
@@ -23,6 +24,7 @@ import org.bson.types.ObjectId;
 import java.io.File;
 import java.util.Collection;
 import java.io.IOException;
+import java.util.List;
 
 
 /*
@@ -35,23 +37,15 @@ class Submission implements Runnable {
     private static final String home = System.getProperty("user.home");
     private static final String uploadDir = home + "/.ggp-server/uploads/";
     private static final String compileDir = home + "/.ggp-server/compiled/";
-    private MongoClient mongoClient;
-    private MongoDatabase database;
+
     private MongoConnection con;
     private MongoCollection<Document> players;
     private MongoCollection<Document> tournaments;
     private MongoCollection<Document> leaderboards;
     private MongoCollection<Document> matches;
 
-    public Submission() {
-        /*mongoClient = new MongoClient("localhost", PORT);
-        database = mongoClient.getDatabase("meteor");
-        players = database.getCollection("players");
-        tournaments = database.getCollection("tournaments");
-        leaderboards = database.getCollection("tournaments");
-        matches = database.getCollection("matches");*/
-
-        con = new MongoConnection();
+    public Submission(MongoConnection mongoConnect) {
+        con = mongoConnect;
         matches = con.matches;
         tournaments = con.tournaments;
         players = con.players;
@@ -127,41 +121,31 @@ class Submission implements Runnable {
         }
     }
 
-    private void resetRating(String tourid, String username) {
-        Document latestMatch = matches.find(eq("tournament_id", tourid)).sort(descending("_id")).first();
-        ObjectId matchid = latestMatch.getObjectId("_id");
-
-        Document elemMatchCondition = new Document("$elemMatch", new Document("username", username));
-        Document ranksCondition = new Document("ranks", elemMatchCondition);
-
-        GameInfo gameInfo = GameInfo.getDefaultGameInfo();
-        Document setCondition = new Document("$set",
-                new Document("ranks.$.rating", gameInfo.getDefaultRating().getConservativeRating())
-                        .append("ranks.$.mu", gameInfo.getDefaultRating().getMean())
-                        .append("ranks.$.sigma", gameInfo.getDefaultRating().getStandardDeviation())
-        );
-        matches.updateOne(and(eq("_id", matchid), ranksCondition), setCondition);
-    }
-
     @Override
     public void run() {
+        String tourID, pathToZip, pathToClasses, playerID;
 
         while (true) {
             for (Document thePlayer : players.find(eq("status", "uploaded")).sort(descending("createdAt"))) {
-                String pathToZip = thePlayer.get("pathToZip").toString();
+                pathToZip = thePlayer.getString("pathToZip");
+                playerID = thePlayer.getString("_id");
+
                 try {
                     unzip(pathToZip);
-                    String pathToClasses = compilePlayer(pathToZip);
-                    if (pathToClasses == null) // compiles fail
-                        players.updateOne(eq("pathToZip", pathToZip), new Document("$set", new Document("status", "fail")));
+                    pathToClasses = compilePlayer(pathToZip);
+
+                    // compiles failed
+                    if (pathToClasses == null) {
+
+                        //players.updateOne(eq("pathToZip", pathToZip), new Document("$set", new Document("status", "fail")));
+                        players.updateOne(eq("_id", playerID), new Document("$set", new Document("status", "fail")));
+                    }
                     else {
                         // compiles successfully and resets user's rating.
                         UpdateResult result =
-                                players.updateOne(eq("pathToZip", pathToZip),
+                                players.updateOne(
+                                        eq("pathToZip", pathToZip),
                                 new Document("$set", new Document("pathToClasses", pathToClasses).append("status", "compiled")));
-                        Document latestMatch = matches.find().sort(descending("_id")).first();
-                        if (latestMatch != null)
-                            resetRating(latestMatch.getString("tournament_id"), thePlayer.getString("username"));
                     }
                 }
                 catch(Exception e) {
@@ -176,7 +160,6 @@ class Submission implements Runnable {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            //System.out.println("Submission --- 5 seconds passed ---");
         }
     }
 }

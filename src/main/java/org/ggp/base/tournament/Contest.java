@@ -17,21 +17,21 @@ import java.util.HashMap;
 public class Contest {
 
     public static void main(String[] args) throws InterruptedException {
+        // Init Mongo connectioin
+        MongoConnection con = new MongoConnection();
+
         // Deamon program to unzip and compile incoming players
-        Submission submission = new Submission();
+        Submission submission = new Submission(con);
         Thread submissionThread = new Thread(submission);
         submissionThread.start();
 
         // Updates game list to sync with game repo
-        PopulateGames pGame = new PopulateGames();
+        PopulateGames pGame = new PopulateGames(con);
         Thread pGameT = new Thread(pGame);
         pGameT.start();
 
-
         // Runs tournaments
-        MongoConnection con = new MongoConnection();
         MongoCollection<Document> tournaments = con.tournaments;
-
         Map<String, TournamentManager> tournamentMap = new HashMap<String, TournamentManager>();
         while (true) {
             // each tournament does match making and updates match
