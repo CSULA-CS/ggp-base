@@ -23,7 +23,7 @@ public class TournamentManagerTest extends Assert {
             int numUserInRanking = tm.getCurrentRankings().size();
             int numCompiledPlayerByNewUser = tm.compiledPlayersByUser(userToAdd).size();
 
-            // adds user, if this user is not in this tournament yet.
+            // adds user, if this user is not in this tournament.
             tm.addUser(userToAdd);
             tm.addPlayer(tourName, userToAdd, randomPlayerPath);
             assertEquals(numUser + 1, tm.usersInTournament().size());

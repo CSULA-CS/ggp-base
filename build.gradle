@@ -14,7 +14,8 @@ repositories {
  * during setup.
  */
 dependencies {
-    compile group: 'org.mongodb', name: 'mongodb-driver', version: '3.0.0'
+//    compile group: 'org.mongodb', name: 'mongodb-driver', version: '3.0.0'
+    compile 'org.mongodb:mongodb-driver:3.2.2'
     compile files(
         'lib/commons-io-2.4/commons-io-2.4.jar',
         'lib/zip4j/zip4j_1.3.2.jar',
