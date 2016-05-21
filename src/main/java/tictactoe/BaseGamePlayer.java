@@ -17,6 +17,6 @@ public abstract class BaseGamePlayer {
 
     abstract void updateGameState(MachineState machineState);
 
-    abstract Move selectTheMove(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException;
+    abstract Move selectTheMove(long timeout) throws Exception;
 
 }
