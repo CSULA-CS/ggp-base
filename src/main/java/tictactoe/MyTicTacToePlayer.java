@@ -56,7 +56,7 @@ public class MyTicTacToePlayer extends TicTacToePlayer {
     // Marks that cell, if there are no opponent's mark in that column.
     // Otherwise, marks on first blank cell in a column.
     @Override
-    Move selectTheMove(long timeout) throws Exception {
+    Move selectTheMove(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException {
         // 1 second before timeout
         long finishBy = timeout - 1000;
 
@@ -84,7 +84,7 @@ public class MyTicTacToePlayer extends TicTacToePlayer {
      * True, if there is an opponent's mark on the column containing this cell.
      * False, otherwise.
      */
-    Boolean isThereOpponentInColumn(int thisCol) throws Exception {
+    Boolean isThereOpponentInColumn(int thisCol) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException {
         // By column
         for (int row = 1; row <= NUM_ROW; row++) {
             if (board(thisCol, row) == getOpponentSymbol())
@@ -97,7 +97,7 @@ public class MyTicTacToePlayer extends TicTacToePlayer {
      * True, if there is an opponent's mark on the row containing this cell.
      * False, otherwise.
      */
-    Boolean isThereOpponentInRow(int thisRow) throws Exception {
+    Boolean isThereOpponentInRow(int thisRow) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException {
         // By Row
         for (int col = 1; col <= NUM_COL; col++) {
             if (board(col, thisRow) == getOpponentSymbol())
