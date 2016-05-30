@@ -228,21 +228,23 @@ public class TournamentManager implements Observer {
     private List<String> usersHavingCompiledPlayer() {
         // "_id" required by API
         List<Document> playersInTournament =
-                players.aggregate(
-                        asList(
-                                new Document("$match", new Document("tournament_id", tourid)),
-                                new Document("$group", new Document("_id", "$username"))
-                        )).into(new ArrayList<Document>());
+            players.aggregate(
+                asList(
+                    new Document("$match", new Document("tournament_id", tourid)),
+                    new Document("$group", new Document("_id", "$username"))
+                )).into(new ArrayList<Document>());
 
+
+        // Finds users having player with status 'compiled'
         List users = new ArrayList<String>();
         for (Document aPlayer : playersInTournament) {
             String username = aPlayer.get("_id").toString();
             // System.out.println("username = " + username);
             Document thisPlayer =
-                    players.find(and(
-                            eq("username", username),
-                            eq("tournament_id", tourid),
-                            eq("status", "compiled"))).first();
+                players.find(and(
+                    eq("username", username),
+                    eq("tournament_id", tourid),
+                    eq("status", "compiled"))).first();
 
             if (thisPlayer != null)
                 users.add(username);
@@ -392,13 +394,13 @@ public class TournamentManager implements Observer {
 
         long start = System.currentTimeMillis();
         Document userNeverPlay =
-                players.find(
-                        and(
-                                eq("tournament_id", tourid),
-                                eq("status", "compiled"),
-                                nin("username", currentUsers)
-                        )
-                ).first();
+            players.find(
+                and(
+                    eq("tournament_id", tourid),
+                    eq("status", "compiled"),
+                    nin("username", currentUsers)
+                )
+            ).first();
         long stop = System.currentTimeMillis();
         long time = stop - start;
         if (userNeverPlay != null) return createDefaultRatingUser(userNeverPlay.getString("username"));
@@ -644,9 +646,9 @@ public class TournamentManager implements Observer {
         List<Document> matchResult = new ArrayList<>();
         for (int i = 0; i < match.getGoalValues().size(); i++) {
             matchResult.add(
-                    new Document("username", match.getPlayerNamesFromHost().get(i))
-                            .append("score", match.getGoalValues().get(i))
-                            .append("role", roles.get(i).toString())
+                new Document("username", match.getPlayerNamesFromHost().get(i))
+                    .append("score", match.getGoalValues().get(i))
+                    .append("role", roles.get(i).toString())
             );
         }
 

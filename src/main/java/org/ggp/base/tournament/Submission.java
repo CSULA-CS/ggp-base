@@ -143,9 +143,11 @@ class Submission implements Runnable {
                     else {
                         // compiles successfully and resets user's rating.
                         UpdateResult result =
-                                players.updateOne(
-                                        eq("pathToZip", pathToZip),
-                                new Document("$set", new Document("pathToClasses", pathToClasses).append("status", "compiled")));
+                            players.updateOne(
+                                eq("pathToZip", pathToZip),
+                                new Document("$set", new Document("pathToClasses", pathToClasses)
+                                    .append("status", "compiled"))
+                                    .append("createdAt", System.currentTimeMillis()));
                     }
                 }
                 catch(Exception e) {
