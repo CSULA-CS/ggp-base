@@ -70,6 +70,7 @@ Database Schema
 - LeaderBoard
     {
         "_id" : ObjectId("56e318e792e3d7dcd31948a2"),
+        "tournament_id" : ObjectId,
         "ranks" : [
             {
                 "username" : "searchlite",
@@ -80,7 +81,7 @@ Database Schema
                 "win" : 216,
                 "lose" : 28,
                 "draw" : 25,
-                "rank" : 1
+
             },
             {
                 "username" : "tictactoe",
@@ -91,7 +92,7 @@ Database Schema
                 "win" : 117,
                 "lose" : 147,
                 "draw" : 5,
-                "rank" : 2
+
             },
             {
                 "username" : "random",
@@ -102,7 +103,7 @@ Database Schema
                 "win" : 44,
                 "lose" : 202,
                 "draw" : 26,
-                "rank" : 3
+
             }
         ]
     }
@@ -115,7 +116,7 @@ Database Schema
         "tournament" : "ttt-18",
         "pathToZip" : "myRandomPlayer-Fri Mar 11 2016 17:42:51 GMT-0800 (PST).zip",
         "pathToClasses" : "/Users/Amata/.ggp-server/compiled/myRandomPlayer-Fri Mar 11 2016 17:42:51 GMT-0800 (PST)",
-        "status" : "compiled",
+        "status" : "uploaded", "busy", "free", "failed"
         "createdAt" : ISODate("2016-03-12T01:42:51.920Z")
     }
 

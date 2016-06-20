@@ -1,18 +1,12 @@
 package org.ggp.base.tournament;
 
-import com.mongodb.client.result.UpdateResult;
-import jskills.GameInfo;
 import net.lingala.zip4j.exception.ZipException;
 import net.lingala.zip4j.core.ZipFile;
 
-import com.mongodb.MongoClient;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoDatabase;
-import static com.mongodb.client.model.Sorts.*;
 import static com.mongodb.client.model.Filters.*;
+
 import org.bson.Document;
 
-import javax.print.Doc;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.ToolProvider;
@@ -22,6 +16,7 @@ import org.apache.commons.io.FileUtils;
 import org.bson.types.ObjectId;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.io.IOException;
 import java.util.List;
@@ -38,17 +33,7 @@ class Submission implements Runnable {
     private static final String uploadDir = home + "/.ggp-server/uploads/";
     private static final String compileDir = home + "/.ggp-server/compiled/";
 
-    private MongoConnection con;
-    private MongoCollection<Document> players;
-    private MongoCollection<Document> tournaments;
-    private MongoCollection<Document> leaderboards;
-    private MongoCollection<Document> matches;
-
-    public Submission(MongoConnection mongoConnect) {
-        con = mongoConnect;
-        matches = con.matches;
-        tournaments = con.tournaments;
-        players = con.players;
+    public Submission() {
 
     }
 
@@ -94,7 +79,7 @@ class Submission implements Runnable {
         return result;
     }
 
-    public String compilePlayer(String pathToZip) throws Exception {
+    public String compilePath(String pathToZip) throws Exception {
         // compile unzipped files, Need only one root package
         String base = pathToZip.split("\\.(?=[^\\.]+$)")[0];
         String playerDir = compileDir + base;
@@ -121,34 +106,38 @@ class Submission implements Runnable {
         }
     }
 
+    public void setPlayerCompileFailed(ObjectId playerID) {
+        MongoConnection.players.updateOne(eq("_id", playerID), new Document("$set", new Document("srcStatus", "fail")));
+    }
+
+    public void compilePlayer(Document thePlayer) throws Exception {
+        String pathToZip = thePlayer.getString("pathToZip");
+        ObjectId playerID = thePlayer.getObjectId("_id");
+        unzip(pathToZip);
+        String pathToClasses = compilePath(pathToZip);
+
+        // compiles failed
+        if (pathToClasses == null) {
+            setPlayerCompileFailed(playerID);
+        }
+        else {
+            // Adds new rankings to leaderboards collection
+            ObjectId tourID = thePlayer.getObjectId("tournament_id");
+            String username = thePlayer.getString("username");
+            QueryUtil.setPlayerReady(playerID, pathToClasses);
+        }
+    }
+
+    public List<Document> getUploadedPlayers() {
+        return MongoConnection.players.find(eq("srcStatus", "uploaded")).into(new ArrayList<Document>());
+    }
+
     @Override
     public void run() {
-        String tourID, pathToZip, pathToClasses, playerID;
-
         while (true) {
-            for (Document thePlayer : players.find(eq("status", "uploaded")).sort(descending("createdAt"))) {
-                pathToZip = thePlayer.getString("pathToZip");
-                playerID = thePlayer.getString("_id");
-
+            for (Document thePlayer : getUploadedPlayers()) {
                 try {
-                    unzip(pathToZip);
-                    pathToClasses = compilePlayer(pathToZip);
-
-                    // compiles failed
-                    if (pathToClasses == null) {
-
-                        //players.updateOne(eq("pathToZip", pathToZip), new Document("$set", new Document("status", "fail")));
-                        players.updateOne(eq("_id", playerID), new Document("$set", new Document("status", "fail")));
-                    }
-                    else {
-                        // compiles successfully and resets user's rating.
-                        UpdateResult result =
-                            players.updateOne(
-                                eq("pathToZip", pathToZip),
-                                new Document("$set", new Document("pathToClasses", pathToClasses)
-                                    .append("status", "compiled"))
-                                    .append("createdAt", System.currentTimeMillis()));
-                    }
+                    compilePlayer(thePlayer);
                 }
                 catch(Exception e) {
                     e.printStackTrace();

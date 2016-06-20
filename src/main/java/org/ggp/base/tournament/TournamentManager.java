@@ -42,24 +42,13 @@ import static java.util.Arrays.asList;
  * Currently supports only two-player game.
  */
 public class TournamentManager implements Observer {
-    private final int numPlayers;
-    // map matchid with a list of players for that match
-    private final Map<String, List<GamePlayer>> playerMap;
-    // schedulingQueue is a queue of finished matches but not inserted to DB yet.
-    private final List<Match> schedulingQueue;
-    private final Set<String> busyUsers;
-
     // game info
+    private final int numPlayers;
     private final String gameid;
     private final String gameKey;
     private final Game game;
     private final List<Role> roles;
-    protected MongoCollection<Document> games;
-    protected MongoCollection<Document> matches;
-    protected MongoCollection<Document> tournaments;
-    protected MongoCollection<Document> players;
     private TwoPlayerTrueSkillCalculator twoPlayersCalculator;
-    private MongoConnection con;
     private String tourid;
     private String tournament;
     private GameInfo gameInfo;
@@ -68,24 +57,14 @@ public class TournamentManager implements Observer {
     private int startClock = 3;
     private int playClock = 14;
 
-    public TournamentManager(String touneyName, MongoConnection connection) {
+    public TournamentManager(String touneyName) {
         twoPlayersCalculator = new TwoPlayerTrueSkillCalculator();
-        con = connection;
-        matches = con.matches;
-        tournaments = con.tournaments;
-        players = con.players;
-        games = con.games;
-
         tournament = touneyName;
-        // Make these collections synchronized in case if later we use threads to manage this class.
-        busyUsers = Collections.synchronizedSet(new HashSet<String>());
-        playerMap = Collections.synchronizedMap(new HashMap<String, List<GamePlayer>>());
-        schedulingQueue = Collections.synchronizedList(new ArrayList<Match>());
 
         // Computes number of roles/players for this game.
-        tourid = tournaments.find(eq("name", tournament)).first().getString("_id");
-        gameid = tournaments.find(eq("_id", tourid)).first().getString("gameid");
-        gameKey = games.find(eq("_id", new ObjectId(gameid))).first().getString("key");
+        tourid = MongoConnection.tournaments.find(eq("name", tournament)).first().getString("_id");
+        gameid = MongoConnection.tournaments.find(eq("_id", tourid)).first().getString("gameid");
+        gameKey = MongoConnection.games.find(eq("_id", new ObjectId(gameid))).first().getString("key");
         game = GameRepository.getDefaultRepository().getGame(gameKey);
         roles = Role.computeRoles(game.getRules());
         numPlayers = roles.size();
@@ -94,24 +73,15 @@ public class TournamentManager implements Observer {
         startSchedulingThread();
     }
 
-    public TournamentManager(String theTourid, String touneyName, MongoConnection connection) {
+    public TournamentManager(String theTourid, String touneyName) {
         twoPlayersCalculator = new TwoPlayerTrueSkillCalculator();
-        con = connection;
-        matches = con.matches;
-        tournaments = con.tournaments;
-        players = con.players;
-        games = con.games;
         tourid = theTourid;
         tournament = touneyName;
-        // Make these collections synchronized in case if later we use threads to manage this class.
-        busyUsers = Collections.synchronizedSet(new HashSet<String>());
-        playerMap = Collections.synchronizedMap(new HashMap<String, List<GamePlayer>>());
-        schedulingQueue = Collections.synchronizedList(new ArrayList<Match>());
 
         // Computes number of roles/players for this game.
         gameInfo = GameInfo.getDefaultGameInfo();
-        gameid = tournaments.find(eq("_id", tourid)).first().getString("gameid");
-        gameKey = games.find(eq("_id", new ObjectId(gameid))).first().getString("key");
+        gameid = MongoConnection.tournaments.find(eq("_id", tourid)).first().getString("gameid");
+        gameKey = MongoConnection.games.find(eq("_id", new ObjectId(gameid))).first().getString("key");
         game = GameRepository.getDefaultRepository().getGame(gameKey);
         roles = Role.computeRoles(game.getRules());
         numPlayers = roles.size();
@@ -120,7 +90,7 @@ public class TournamentManager implements Observer {
     }
 
     public UpdateResult addUser(String username) throws Exception {
-        return tournaments.updateOne(eq("_id", tourid),
+        return MongoConnection.tournaments.updateOne(eq("_id", tourid),
                 new Document("$push", new Document("users", new Document("username", username)))
         );
     }
@@ -135,16 +105,15 @@ public class TournamentManager implements Observer {
             .append("pathToClasses", pathToClasses)
             .append("status", "compiled")
             .append("createdAt", new Date());
-        players.insertOne(aPlayer);
+        MongoConnection.players.insertOne(aPlayer);
     }
 
     /*
      * For testing: delete a user from this tournament
      */
     public UpdateResult deleteUser(String username) {
-        return tournaments.updateOne(eq("name", tournament),
-                new Document("$pull",
-                    new Document("users", new Document("username", username))));
+        return MongoConnection.tournaments.updateOne(eq("name", tournament),
+            new Document("$pull", new Document("users", new Document("username", username))));
     }
 
     /*
@@ -152,12 +121,12 @@ public class TournamentManager implements Observer {
      */
     public Document deleteLatestPlayer(String username) {
         Date latestMatchDate =
-            players.find(and(
+            MongoConnection.players.find(and(
                 eq("tournament", tournament),
                 eq("username", username),
                 eq("status", "compiled"))).sort(descending("createdAt")).first().getDate("createdAt");
         System.out.println("Delete a match on this date : " + latestMatchDate);
-        return players.findOneAndDelete(
+        return MongoConnection.players.findOneAndDelete(
             and(
                 eq("tournament", tournament),
                 eq("username", username),
@@ -170,7 +139,7 @@ public class TournamentManager implements Observer {
      */
     public boolean hasThisUser(String userToAdd) {
         Document elemMatch = new Document("users.username", userToAdd);
-        if (tournaments.find(and(eq("name", tournament), new Document("elemMatch", elemMatch))).first() != null)
+        if (MongoConnection.tournaments.find(and(eq("name", tournament), new Document("elemMatch", elemMatch))).first() != null)
             return true;
         return false;
     }
@@ -181,7 +150,7 @@ public class TournamentManager implements Observer {
      */
     public boolean doesUserHaveCompiledPlayer(String username) {
         Document aPlayer =
-            players.find(
+            MongoConnection.players.find(
                 and(
                     eq("tournament", tournament),
                     eq("username", username))
@@ -196,7 +165,7 @@ public class TournamentManager implements Observer {
      */
     public List<Document> compiledPlayersByUser(String username) {
         return
-            players.find(
+            MongoConnection.players.find(
                 and(
                     eq("tournament", tournament),
                     eq("username", username),
@@ -209,9 +178,9 @@ public class TournamentManager implements Observer {
      * Returns a document of latest match
      */
     public Document latestMatch() {
-        if (matches.count(eq("tournament_id", tourid)) == 0)
+        if (MongoConnection.matches.count(eq("tournament_id", tourid)) == 0)
             return null;
-        return matches.find(eq("tournament_id", tourid)).sort(descending("createdAt")).first();
+        return MongoConnection.matches.find(eq("tournament_id", tourid)).sort(descending("createdAt")).first();
     }
 
     /*
@@ -219,7 +188,7 @@ public class TournamentManager implements Observer {
      * Used in TournamentManagerTest
      */
     public List<Document> usersInTournament() {
-        return (List) tournaments.find(and(eq("name", tournament))).first().get("users");
+        return (List) MongoConnection.tournaments.find(and(eq("name", tournament))).first().get("users");
     }
 
     /*
@@ -228,7 +197,7 @@ public class TournamentManager implements Observer {
     private List<String> usersHavingCompiledPlayer() {
         // "_id" required by API
         List<Document> playersInTournament =
-            players.aggregate(
+                MongoConnection.players.aggregate(
                 asList(
                     new Document("$match", new Document("tournament_id", tourid)),
                     new Document("$group", new Document("_id", "$username"))
@@ -241,7 +210,7 @@ public class TournamentManager implements Observer {
             String username = aPlayer.get("_id").toString();
             // System.out.println("username = " + username);
             Document thisPlayer =
-                players.find(and(
+                MongoConnection.players.find(and(
                     eq("username", username),
                     eq("tournament_id", tourid),
                     eq("status", "compiled"))).first();
@@ -277,13 +246,13 @@ public class TournamentManager implements Observer {
     /*
      * Shuts down all players
      */
-    public void shutdown() {
+    /*public void shutdown() {
         for (String match : playerMap.keySet())
             for (GamePlayer aPlayer : playerMap.get(match))
                 aPlayer.shutdown();
 
         con.close();
-    }
+    }*/
 
     @Override
     public void observe(Event genericEvent) {
@@ -298,7 +267,7 @@ public class TournamentManager implements Observer {
             System.out.println("............. Match is completed.");
 
             // shut down players and remove matchid
-            synchronized (playerMap) {
+            /*synchronized (playerMap) {
                 for (GamePlayer aPlayer : playerMap.get(match.getMatchId())) {
                     System.out.println("............. shutdown a player : " + aPlayer.getName());
                     aPlayer.shutdown();
@@ -308,7 +277,8 @@ public class TournamentManager implements Observer {
 
             synchronized (schedulingQueue) {
                 schedulingQueue.add(match);
-            }
+            }*/
+
             return;
         }
 
@@ -344,7 +314,7 @@ public class TournamentManager implements Observer {
     /* **** Currently Not used *******
      * Shuffles a list of players and finds one pair.
      */
-    private void matchByRandom(List<String> users) throws Exception {
+    /*private void matchByRandom(List<String> users) throws Exception {
         System.out.print("matchByRandom::");
         long seed = System.currentTimeMillis();
         Collections.shuffle(users, new Random(seed));
@@ -361,7 +331,7 @@ public class TournamentManager implements Observer {
             return;
         }
         System.out.println("Not enough players");
-    }
+    }*/
 
     /*
      * Matches least played user with an opponent making best match quality.
@@ -394,7 +364,7 @@ public class TournamentManager implements Observer {
 
         long start = System.currentTimeMillis();
         Document userNeverPlay =
-            players.find(
+            MongoConnection.players.find(
                 and(
                     eq("tournament_id", tourid),
                     eq("status", "compiled"),
@@ -414,7 +384,7 @@ public class TournamentManager implements Observer {
         if (latestMatch() == null)
             return null;
 
-        return players.find(
+        return MongoConnection.players.find(
             and(
                 eq("tournament_id", tourid),
                 gt("createdAt", latestMatch().getDate("createdAt"))
@@ -435,24 +405,24 @@ public class TournamentManager implements Observer {
             Collection<ITeam> teams = setupTeams(p1, p2);
             double quality = twoPlayersCalculator.calculateMatchQuality(GameInfo.getDefaultGameInfo(), teams);
 
-            if (!busyUsers.contains(user1)
-                && !busyUsers.contains(user2)
-                && !user1.equals(user2)
-                && quality > bestQuality) {
-
-                    bestQuality = quality;
-                    pickedUsers.clear();
-                    pickedUsers.add(user1);
-                    pickedUsers.add(user2);
-            }
+//            if (!busyUsers.contains(user1)
+//                && !busyUsers.contains(user2)
+//                && !user1.equals(user2)
+//                && quality > bestQuality) {
+//
+//                    bestQuality = quality;
+//                    pickedUsers.clear();
+//                    pickedUsers.add(user1);
+//                    pickedUsers.add(user2);
+//            }
         }
 
         if (pickedUsers.isEmpty()) {
             return false;
         } else {
-            synchronized (busyUsers) {
-                busyUsers.addAll(pickedUsers);
-            }
+//            synchronized (busyUsers) {
+//                busyUsers.addAll(pickedUsers);
+//            }
             playOneVsOne(pickedUsers);
             return true;
         }
@@ -480,37 +450,6 @@ public class TournamentManager implements Observer {
         });
     }
 
-    /*
-     * Updates rankings in database by match result.
-     * Called after each match is finished.
-     */
-    private void updateRankings(Match match)  throws Exception {
-        System.out.println("............. updateRankings.");
-        // gets current rankings and put in a map
-        Map<String, Document> userRankMap = new HashMap<>();
-        for (Document rank : getCurrentRankings()) {
-            userRankMap.put(rank.getString("username"), rank);
-        }
-
-        // calculates ratings of users in this match
-        String user1 = match.getPlayerNamesFromHost().get(0);
-        String user2 = match.getPlayerNamesFromHost().get(1);
-        Rating p1Rating = new Rating(userRankMap.get(user1).getDouble("mu"), userRankMap.get(user1).getDouble("sigma"));
-        Rating p2Rating = new Rating(userRankMap.get(user2).getDouble("mu"), userRankMap.get(user2).getDouble("sigma"));
-        Map<IPlayer, Rating> newRatings = updateOneVsOneRating(match, p1Rating, p2Rating);
-
-        updateWinLoseDraw(match, newRatings, userRankMap);
-        // gets a list of rankings from a map, then add field "rank" to each of them
-        List<Document> ranks = new ArrayList<Document>(userRankMap.values());
-        createRankings(ranks);
-
-        // match data
-        List<Document> matchResult = matchResult(match);
-        // insert data
-        insertNewMatch(match, matchResult, ranks);
-
-        //saveMatch(match);
-    }
 
     /*
      * Updates numMatch, win, lose, draw for each user playing this match
@@ -559,23 +498,23 @@ public class TournamentManager implements Observer {
         }
 
         userRankMap.put(user1, new Document("username", user1)
-                .append("rating", user1ConservativeRating)
-                .append("mu", user1Mean)
-                .append("sigma", user1StandardDeviation)
-                .append("numMatch", ++user1NumMatch)
-                .append("win", user1Win)
-                .append("lose", user1Lose)
-                .append("draw", user1Draw)
+            .append("rating", user1ConservativeRating)
+            .append("mu", user1Mean)
+            .append("sigma", user1StandardDeviation)
+            .append("numMatch", ++user1NumMatch)
+            .append("win", user1Win)
+            .append("lose", user1Lose)
+            .append("draw", user1Draw)
         );
 
         userRankMap.put(user2, new Document("username", user2)
-                .append("rating", user2ConservativeRating)
-                .append("mu", user2Mean)
-                .append("sigma", user2StandardDeviation)
-                .append("numMatch", ++user2NumMatch)
-                .append("win", user2Win)
-                .append("lose", user2Lose)
-                .append("draw", user2Draw)
+            .append("rating", user2ConservativeRating)
+            .append("mu", user2Mean)
+            .append("sigma", user2StandardDeviation)
+            .append("numMatch", ++user2NumMatch)
+            .append("win", user2Win)
+            .append("lose", user2Lose)
+            .append("draw", user2Draw)
         );
     }
 
@@ -607,9 +546,9 @@ public class TournamentManager implements Observer {
     private GamePlayer createGamePlayer(String username) throws Exception {
         int port = 9157;
         Document aPlayer =
-                players.find(and(
-                        eq("status", "compiled"),
-                        eq("username", username))).sort(descending("createdAt")).first();
+            MongoConnection.players.find(and(
+                eq("status", "compiled"),
+                eq("username", username))).sort(descending("createdAt")).first();
 
         String pathToClasses = aPlayer.getString("pathToClasses");
         URL url = new File(pathToClasses).toURL();
@@ -670,13 +609,13 @@ public class TournamentManager implements Observer {
 
     private Document createDefaultRatingUser(String username) {
         return new Document("username", username)
-                .append("rating", gameInfo.getDefaultRating().getConservativeRating())
-                .append("mu", gameInfo.getDefaultRating().getMean())
-                .append("sigma", gameInfo.getDefaultRating().getStandardDeviation())
-                .append("numMatch", 0)
-                .append("win", 0)
-                .append("lose", 0)
-                .append("draw", 0);
+            .append("rating", gameInfo.getDefaultRating().getConservativeRating())
+            .append("mu", gameInfo.getDefaultRating().getMean())
+            .append("sigma", gameInfo.getDefaultRating().getStandardDeviation())
+            .append("numMatch", 0)
+            .append("win", 0)
+            .append("lose", 0)
+            .append("draw", 0);
     }
 
     /*
@@ -715,7 +654,7 @@ public class TournamentManager implements Observer {
                 .append("ranks", ranks)
                 .append("replay", getXHTMLReplay(match))
                 .append("createdAt", new Date());
-        matches.insertOne(thisMatch);
+        MongoConnection.matches.insertOne(thisMatch);
 
         // improves loading time of the leader board when a number of users reaches 1,000.
         // Creates collection leaderboards to store only rankings.
@@ -723,16 +662,16 @@ public class TournamentManager implements Observer {
 
         Document rankings = new Document("ranks", ranks);
         // Adds new rankings to leaderboards collection
-        Object leaderBoardObj = tournaments.find(new Document("_id", tourid)).first().get("leaderBoardId");
+        Object leaderBoardObj = MongoConnection.tournaments.find(new Document("_id", tourid)).first().get("leaderBoardId");
 
         // if there are some matches already, updates the leader board.
         if (leaderBoardObj instanceof ObjectId) {
-            con.leaderboards.updateOne(eq("_id", (ObjectId) leaderBoardObj), new Document("$set", rankings));
+            MongoConnection.leaderboards.updateOne(eq("_id", (ObjectId) leaderBoardObj), new Document("$set", rankings));
         } else {
-            con.leaderboards.insertOne(rankings);
+            MongoConnection.leaderboards.insertOne(rankings);
             Document leaderBoard = new Document("leaderBoardId", rankings.getObjectId("_id"));
             Document updateLeaderBoardIdQuery = new Document("$set", leaderBoard);
-            tournaments.updateOne(new Document("_id", tourid), updateLeaderBoardIdQuery);
+            MongoConnection.tournaments.updateOne(new Document("_id", tourid), updateLeaderBoardIdQuery);
         }
     }
 
@@ -828,9 +767,10 @@ public class TournamentManager implements Observer {
         // server.join();  ** Don't use "join", it makes other threads wait for this one.
 
         // update players and match status
-        synchronized (playerMap) {
-            playerMap.put(matchId, gamePlayers);
-        }
+//        synchronized (playerMap) {
+//            playerMap.put(matchId, gamePlayers);
+//        }
+
         System.out.println(">> playGame done!!");
     }
 
@@ -853,19 +793,19 @@ public class TournamentManager implements Observer {
                     ;
                 }
 
-                if (!schedulingQueue.isEmpty()) {
-                    System.out.println(">> updateSchdulingQueue");
-                    Match match = schedulingQueue.remove(0);
-
-                    try {
-                        updateRankings(match);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                    synchronized (busyUsers) {
-                        busyUsers.removeAll(match.getPlayerNamesFromHost());
-                    }
-                }
+//                if (!schedulingQueue.isEmpty()) {
+//                    System.out.println(">> updateSchdulingQueue");
+//                    Match match = schedulingQueue.remove(0);
+//
+//                    try {
+//                        updateRankings(match);
+//                    } catch (Exception e) {
+//                        e.printStackTrace();
+//                    }
+//                    synchronized (busyUsers) {
+//                        busyUsers.removeAll(match.getPlayerNamesFromHost());
+//                    }
+//                }
 
             }
         }

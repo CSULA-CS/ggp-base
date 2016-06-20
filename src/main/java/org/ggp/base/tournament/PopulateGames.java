@@ -20,12 +20,11 @@ import java.util.List;
 import static com.mongodb.client.model.Filters.eq;
 
 public class PopulateGames implements Runnable {
-    private MongoConnection con;
-    private MongoCollection games;
+//    private MongoConnection con;
+//    private MongoCollection games;
 
-    public PopulateGames(MongoConnection mongoConnect) {
-        con = mongoConnect;
-        games = con.games;
+    public PopulateGames() {
+
     }
 
     /*
@@ -40,7 +39,7 @@ public class PopulateGames implements Runnable {
 
         List<Document> gamesToAdd = new ArrayList<>();
         try {
-            if (theKeyList.size() > games.count()) {
+            if (theKeyList.size() > MongoConnection.games.count()) {
                 System.out.println("updating a game list.");
                 for (String theKey: theKeyList) {
                     Game theGame = theRepository.getGame(theKey);
@@ -48,15 +47,14 @@ public class PopulateGames implements Runnable {
                         continue;
                     }
 
-
-                    if (games.count(eq("name", theGame.getName())) == 0) {
+                    if (MongoConnection.games.count(eq("name", theGame.getName())) == 0) {
                         String theGameURL = theRepository.getGame(theKey).getRepositoryURL();
                         JSONObject theMetadata = RemoteResourceLoader.loadJSON(theGameURL, 20);
                         Document aGame = new Document("name", theGame.getName())
-                                .append("key", theKey)
-                                .append("description", theGame.getDescription())
-                                .append("xsl", theGame.getStylesheet())
-                                .append("numRoles", theMetadata.getString("numRoles"));
+                            .append("key", theKey)
+                            .append("description", theGame.getDescription())
+                            .append("xsl", theGame.getStylesheet())
+                            .append("numRoles", theMetadata.getString("numRoles"));
                         gamesToAdd.add(aGame);
                     }
                 }
@@ -66,7 +64,7 @@ public class PopulateGames implements Runnable {
                     return;
                 }
 
-                games.insertMany(gamesToAdd);
+                MongoConnection.games.insertMany(gamesToAdd);
                 System.out.println("done updating.");
             }
 
