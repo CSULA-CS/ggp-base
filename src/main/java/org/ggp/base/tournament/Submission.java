@@ -121,7 +121,6 @@ class Submission implements Runnable {
             setPlayerCompileFailed(playerID);
         }
         else {
-            // Adds new rankings to leaderboards collection
             ObjectId tourID = thePlayer.getObjectId("tournament_id");
             String username = thePlayer.getString("username");
             QueryUtil.setPlayerReady(playerID, pathToClasses);

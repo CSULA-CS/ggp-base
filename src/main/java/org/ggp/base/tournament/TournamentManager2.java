@@ -218,8 +218,15 @@ public class TournamentManager2 implements org.ggp.base.util.observer.Observer {
             if (!user1.equals(user2) && quality > bestQuality) {
                 bestQuality = quality;
                 selectedPlayers.clear();
-                selectedPlayers.add(p1);
-                selectedPlayers.add(p2);
+
+                if (Math.random() > 0.5) {
+                    selectedPlayers.add(p1);
+                    selectedPlayers.add(p2);
+                } else {
+                    selectedPlayers.add(p2);
+                    selectedPlayers.add(p1);
+                }
+
             }
         }
 
@@ -232,7 +239,7 @@ public class TournamentManager2 implements org.ggp.base.util.observer.Observer {
     public void sortByNumberOfMatch(List<Document> players) {
         Collections.sort(players, new Comparator<Document>() {
             public int compare(Document d1, Document d2) {
-                return -d1.getInteger("numMatch").compareTo(d2.getInteger("numMatch"));
+                return d1.getInteger("numMatch").compareTo(d2.getInteger("numMatch"));
             }
         });
     }
@@ -276,7 +283,6 @@ public class TournamentManager2 implements org.ggp.base.util.observer.Observer {
         }
 
         Document player1, player2;
-
         if (match.getPlayerNamesFromHost().get(0).equals(playerRanks.get(0).getString("username"))) {
             player1 = playerRanks.get(0);
             player2 = playerRanks.get(1);
