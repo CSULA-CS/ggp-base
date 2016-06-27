@@ -119,7 +119,11 @@ public class QueryUtil {
     }
 
     public static List<Document> getReadyPlayers(ObjectId tourID) {
-        return MongoConnection.players.find(and(eq("tournament_id", tourID), eq("status", "ready"))).into(new ArrayList<Document>());
+        return MongoConnection.players.find(
+            and(
+                eq("tournament_id", tourID),
+                eq("status", "ready"),
+                ne("pathToClasses", ""))).into(new ArrayList<Document>());
     }
 
     public static boolean isPlayerReady(ObjectId playerID) {
