@@ -59,9 +59,8 @@ public class TournamentManager2 implements org.ggp.base.util.observer.Observer {
     }
 
     public List<Document> getCandidates() throws Exception {
-        // normally between 0.00 - 1.00, we use -100.00 to find best opponent.
-        double lower_bound_quality = -100.00;
-        //double lower_bound_quality = -1.00;
+        // normally between 0.00 - 1.00, we use 0.203 to make players play more matches.
+        double lower_bound_quality = 0.203;
 
         List<Document> players = QueryUtil.getReadyPlayers(this.tourID);
         sortByNumberOfMatch(players);
@@ -205,7 +204,6 @@ public class TournamentManager2 implements org.ggp.base.util.observer.Observer {
      * Matches p1 player to best opponent in a tournament.
      */
     public List<Document> bestMatchByCondition(List<Document> rankings, Document p1, double lower_bound_quality) throws Exception {
-        double bestQuality = lower_bound_quality;
         List<Document> selectedPlayers = new ArrayList<>();
 
         for (int i = 0; i < rankings.size(); i++) {
@@ -215,8 +213,8 @@ public class TournamentManager2 implements org.ggp.base.util.observer.Observer {
             Collection<ITeam> teams = setupTeams(p1, p2);
             double quality = skillCalculator.calculateMatchQuality(GameInfo.getDefaultGameInfo(), teams);
 
-            if (!user1.equals(user2) && quality > bestQuality) {
-                bestQuality = quality;
+            System.out.println("quality = " + quality);
+            if (!user1.equals(user2) && quality > lower_bound_quality) {
                 selectedPlayers.clear();
 
                 if (Math.random() > 0.5) {
@@ -249,12 +247,10 @@ public class TournamentManager2 implements org.ggp.base.util.observer.Observer {
      */
     private Map<IPlayer, Rating> updateOneVsOneRating(Match match, List<Document> playerRanks) {
         // calculates ratings of users in this match
-        Document aRank = playerRanks.get(0);
-        Document anotherRank = playerRanks.get(1);
-        Rating p1Rating = new Rating(aRank.getDouble("mu"), aRank.getDouble("sigma"));
-        Rating p2Rating = new Rating(anotherRank.getDouble("mu"), anotherRank.getDouble("sigma"));
-        Player<String> player1 = new Player<String>(aRank.getString("username"));
-        Player<String> player2 = new Player<String>(anotherRank.getString("username"));
+        Rating p1Rating = new Rating(playerRanks.get(0).getDouble("mu"), playerRanks.get(0).getDouble("sigma"));
+        Rating p2Rating = new Rating(playerRanks.get(1).getDouble("mu"), playerRanks.get(1).getDouble("sigma"));
+        Player<String> player1 = new Player<String>(playerRanks.get(0).getString("username"));
+        Player<String> player2 = new Player<String>(playerRanks.get(1).getString("username"));
         Team team1 = new Team(player1, p1Rating);
         Team team2 = new Team(player2, p2Rating);
         Collection<ITeam> teams = Team.concat(team1, team2);
@@ -324,7 +320,11 @@ public class TournamentManager2 implements org.ggp.base.util.observer.Observer {
         insertNewMatch(match, matchResults);
 
         // collects players in this match
-        List<Document> players = QueryUtil.getPlayers(tourID, match.getPlayerNamesFromHost());
+        // List<Document> players = QueryUtil.getPlayers(tourID, match.getPlayerNamesFromHost());
+        List<Document> players = new ArrayList<>();
+        for (String username: match.getPlayerNamesFromHost()) {
+            players.add(QueryUtil.getPlayer(tourID, username));
+        }
 
         // calculates new ratings
         Map<IPlayer, Rating> newRatings = updateOneVsOneRating(match, players);
