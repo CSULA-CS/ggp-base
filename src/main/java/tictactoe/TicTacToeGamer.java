@@ -25,7 +25,6 @@ public class TicTacToeGamer extends SampleGamer {
     public Move stateMachineSelectMove(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException {
         StateMachine theMachine = getStateMachine();
         long start = System.currentTimeMillis();
-        long finishBy = timeout - 1000;
 
         List<Move> moves = theMachine.getLegalMoves(getCurrentState(), getRole());
         transformer.updateGameState(getCurrentState());

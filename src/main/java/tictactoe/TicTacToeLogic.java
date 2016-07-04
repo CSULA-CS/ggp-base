@@ -12,6 +12,7 @@ public class TicTacToeLogic {
         // Variable myRole is either 'x' or 'o' and BLANK is 'b'.
         for (int col = 0; col < DIMENSION; col++) {
             for (int row = 0; row < DIMENSION; row++) {
+                // returns TicTacToeMove object specifying column and row to mark a board.
                 if (board[col][row] == BLANK) return new TicTacToeMove(col, row);
             }
         }
