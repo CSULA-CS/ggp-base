@@ -3,13 +3,15 @@ package tictactoe;
 public class TicTacToeLogic {
 
     public TicTacToeMove getMyMove(char[][] board, char myRole, long timeout) {
-        int DIM = 3;
+        int DIMENSION = 3; // 3 by 3 board.
         char BLANK = 'b';
-        long finishBy = timeout - 1000;
+        long finishBy = timeout - 1000; // timeout: a point of time in future in miliseconds.
 
         // finds first blank in a column
-        for (int col = 0; col < DIM; col++) {
-            for (int row = 0; row < DIM; row++) {
+        // 'board' is a 2D array of character.
+        // Variable myRole is either 'x' or 'o' and BLANK is 'b'.
+        for (int col = 0; col < DIMENSION; col++) {
+            for (int row = 0; row < DIMENSION; row++) {
                 if (board[col][row] == BLANK) return new TicTacToeMove(col, row);
             }
         }
