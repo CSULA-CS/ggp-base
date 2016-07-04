@@ -10,48 +10,35 @@ import org.ggp.base.util.statemachine.exceptions.MoveDefinitionException;
 
 import java.util.List;
 
-public abstract class TicTacToePlayer extends BaseGamePlayer {
-    private StateMachine theMachine;
-    private MachineState theState;
+public class TicTacToeStateTransformer  {
+    private StateMachine stateMachine;
+    private MachineState state;
     private Role role;
-
-    protected final int NUM_ROW = 3;
-    protected final int NUM_COL = 3;
-    protected static final char BLANK = 'b';
-    protected static final char X = 'x';
-    protected static final char O = 'o';
-
     private char[][] board = null;
-    private char mySymbol;
-    private char opponentSymbol;
+
+    public TicTacToeStateTransformer(StateMachine stateMachine, Role role) {
+        this.stateMachine = stateMachine;
+        this.role = role;
+        initBoard();
+    }
 
     private void initBoard() {
+        int NUM_ROW = 3;
+        int NUM_COL = 3;
         board = new char[NUM_COL][NUM_ROW];
         for (int i = 0; i < NUM_COL; i++)
             for (int j = 0; j < NUM_ROW; j++)
                 board[i][j] = 'b';
     }
 
-    /*
-     * Returns a role 'x' or 'o'
-     */
-    public char getMySymbol() {
-        return mySymbol;
+    public char getMyRole() {
+        if (role.toString() == "xplayer")
+            return 'x';
+        return 'o';
     }
 
-    public char getOpponentSymbol() {
-        return opponentSymbol;
-    }
-
-    private void initMyRole() {
-        System.out.println(role.toString());
-        if (role.toString() == "xplayer") {
-            mySymbol = 'x';
-            opponentSymbol = 'o';
-        } else {
-            mySymbol = 'o';
-            opponentSymbol = 'x';
-        }
+    public char[][] getBoard() {
+        return board;
     }
 
     private void updateBoard(GdlSentence sentence) {
@@ -67,41 +54,20 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
         board[col - 1][row - 1] = symbol;
     }
 
-    /*
-     * Returns char at a position (column, row) on the grid.
-     * 'b' = blank, 'x' and 'o'
-     */
-    public char board(int col, int row) {
-        if (board == null) {
-            System.out.println("board is null");
-            initBoard();
-        }
-        return board[col - 1][row - 1];
-    }
-
-    @Override
-    public void init(StateMachine stateMachine, Role theRole) {
-        theMachine = stateMachine;
-        role = theRole;
-        initBoard();
-        initMyRole();
-    }
-
-    @Override
-    public void updateGameState(MachineState machineState) {
-        theState = machineState;
+    public void updateGameState(MachineState currentState) {
+        this.state = currentState;
         String state;
-        for (GdlSentence sentence : machineState.getContents()) {
+        for (GdlSentence sentence : currentState.getContents()) {
             state = sentence.toString();
             if (state.contains("cell")) updateBoard(sentence);
         }
     }
 
-    /**
-     * Marks 'x' or 'o' on the grid and returns Move object required by GGP.
+    /*
+     * Transforms TicTacToeMove to GGP Move
      */
-    public Move mark(int col, int row) throws MoveDefinitionException {
-        List<Move> moves = theMachine.getLegalMoves(theState, role);
+    public Move createMove(TicTacToeMove ticTacToeMove) throws MoveDefinitionException {
+        List<Move> moves = this.stateMachine.getLegalMoves(this.state, role);
 
         for (Move move : moves) {
             // format:  ( mark col row )
@@ -110,8 +76,7 @@ public abstract class TicTacToePlayer extends BaseGamePlayer {
                 int thisCol = Integer.parseInt(move.getContents().toSentence().getBody().get(0).toString());
                 int thisRow = Integer.parseInt(move.getContents().toSentence().getBody().get(1).toString());
 
-                if (col == thisCol && row == thisRow) {
-                    //System.out.println("col = " + col + ", row = " + row);
+                if (ticTacToeMove.col + 1 == thisCol && ticTacToeMove.row + 1 == thisRow) {
                     return move;
                 }
             }

@@ -12,13 +12,13 @@ import java.util.List;
 
 
 public class TicTacToeGamer extends SampleGamer {
-    private BaseGamePlayer thePlayer;
+    private TicTacToeStateTransformer transformer;
+    private TicTacToeLogic logic;
 
     @Override
     public void stateMachineMetaGame(long timeout) throws TransitionDefinitionException, MoveDefinitionException, GoalDefinitionException {
-        thePlayer = new MyTicTacToePlayer(); // Specifies the class defining logic by user
-        thePlayer.init(getStateMachine(), getRole());
-
+        transformer = new TicTacToeStateTransformer(getStateMachine(), getRole());
+        logic = new TicTacToeLogic();
     }
 
     @Override
@@ -28,10 +28,10 @@ public class TicTacToeGamer extends SampleGamer {
         long finishBy = timeout - 1000;
 
         List<Move> moves = theMachine.getLegalMoves(getCurrentState(), getRole());
-        thePlayer.updateGameState(getCurrentState());
+        transformer.updateGameState(getCurrentState());
 
         if (moves.size() == 1) {
-            // if not my turn, return 'noop'.
+            // if this is not my turn, return 'noop'.
             Move selection = moves.get(0);
             long stop = System.currentTimeMillis();
             notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
@@ -39,7 +39,8 @@ public class TicTacToeGamer extends SampleGamer {
         }
 
         // My turn
-        Move selection = thePlayer.selectTheMove(timeout);
+        TicTacToeMove myMove = logic.getMyMove(transformer.getBoard(), transformer.getMyRole(), timeout);
+        Move selection = transformer.createMove(myMove);
         long stop = System.currentTimeMillis();
         notifyObservers(new GamerSelectedMoveEvent(moves, selection, stop - start));
         return selection;
